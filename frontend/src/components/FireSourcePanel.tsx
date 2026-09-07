@@ -1,8 +1,42 @@
-import { Trees, MapPinned, Waves, HelpCircle, AlertOctagon } from 'lucide-react'
+import { Trees, MapPinned, Waves, HelpCircle, AlertOctagon, Wheat, Factory } from 'lucide-react'
 import CountUp from './fx/CountUp'
 import SpotlightCard from './fx/SpotlightCard'
 
 const SOURCE_INFO: Record<string, { icon: typeof Trees; message: string; tone: 'sage' | 'amber' | 'neutral' }> = {
+  Wildfire: {
+    icon: Trees,
+    tone: 'sage',
+    message:
+      'Natural-vegetation hotspot — forest, shrubland, grassland, wetland, or mangrove land cover at this location.',
+  },
+  'Agricultural Fire': {
+    icon: Wheat,
+    tone: 'amber',
+    message:
+      'Cropland hotspot — consistent with crop-residue or agricultural burning. Land cover is a correlate, not a confirmed cause.',
+  },
+  'Industrial/Urban Fire': {
+    icon: Factory,
+    tone: 'amber',
+    message:
+      'Built-up-area hotspot. Land cover suggests urban/industrial surroundings — not a confirmed industrial-fire cause.',
+  },
+  Other: {
+    icon: HelpCircle,
+    tone: 'neutral',
+    message: 'Bare ground, snow/ice, or sparse-vegetation hotspot — source category is inconclusive.',
+  },
+  Offshore: {
+    icon: Waves,
+    tone: 'neutral',
+    message: 'Offshore or water-related hotspot. Geographic verification is recommended.',
+  },
+  Unknown: {
+    icon: HelpCircle,
+    tone: 'amber',
+    message: 'Source could not be determined confidently. Additional satellite or geographic data is required.',
+  },
+  // Retained for responses from the older (pre-multi-class) fire-source model.
   'Vegetation Fire': {
     icon: Trees,
     tone: 'sage',
@@ -14,16 +48,6 @@ const SOURCE_INFO: Record<string, { icon: typeof Trees; message: string; tone: '
     tone: 'amber',
     message:
       'Land-based hotspot. Must NOT be treated as confirmed industrial fire — the dataset has no direct Industrial label.',
-  },
-  Offshore: {
-    icon: Waves,
-    tone: 'neutral',
-    message: 'Offshore or water-related hotspot. Geographic verification is recommended.',
-  },
-  Unknown: {
-    icon: HelpCircle,
-    tone: 'amber',
-    message: 'Source could not be determined confidently. Additional satellite or geographic data is required.',
   },
 }
 

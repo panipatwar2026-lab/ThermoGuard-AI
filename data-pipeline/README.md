@@ -10,7 +10,7 @@ FRP-threshold bucket rather than a real outcome).
 | Old | New |
 |---|---|
 | `risk_level` — undocumented column in a missing CSV, appears FRP-threshold-derived | Did the hotspot actually correspond to a mapped burn within 30 days, and how large (nearby burned-pixel count)? Sourced from MODIS MCD64A1 burned-area. |
-| `fire_source` — trained on FIRMS's own `type` field, which nearly answers the question directly | Real land-cover class (Vegetation/Cropland/Built-up/Water) at the hotspot's location. Sourced from ESA WorldCover 10m. |
+| `fire_source` — trained on FIRMS's own `type` field, which nearly answers the question directly | Real land-cover class at the hotspot's location, sourced from ESA WorldCover 10m: **Wildfire** (tree/shrub/grass/wetland/mangrove), **Agricultural Fire** (cropland), **Industrial/Urban Fire** (built-up), **Offshore** (water), **Other** (bare/snow/moss). |
 
 ## Data sources
 
@@ -25,7 +25,7 @@ FRP-threshold bucket rather than a real outcome).
 Both `sources/burned_area.py` and `sources/landcover.py` were tested against real coordinates:
 
 - A real MCD64A1 burned pixel from the Feb 2021 Similipal (Odisha) fires was located directly in the raw raster, then round-tripped through `burned_outcome_for()` — it correctly reported `burned=True`, the exact matching day-of-year, and a non-zero neighborhood burned-pixel count.
-- `fire_source_for()` correctly classified Sanjay Gandhi National Park (Mumbai) as `Vegetation Fire` (tree cover) and central Mumbai as `Other Land Source` (built-up).
+- `fire_source_for()` correctly classified Sanjay Gandhi National Park (Mumbai) as `Wildfire` (tree cover) and central Mumbai as `Industrial/Urban Fire` (built-up).
 - `build_dataset.py`'s full feature-engineering + labeling join was dry-run against two synthetic FIRMS-shaped rows (one at the verified burn location, one at a no-fire location) and produced correct `High` / `Low` labels with all 35 features matching `backend/app/ml.py`'s schema exactly.
 
 ### Blocked on you: NASA FIRMS MAP_KEY
@@ -45,6 +45,24 @@ I can't register this myself — creating accounts on your behalf is off the tab
 - **Geography**: India (`sources/hotspots.py`'s `INDIA_BBOX`), matching the app's default coordinates and keeping data volume tractable on a local machine.
 - **Time range**: last ~3 years (pass explicitly via `--start`/`--end`).
 - **Compute**: this local machine — both real data sources use windowed/COG reads (only the needed pixels are fetched), not bulk downloads, so this stays feasible without cloud compute.
+
+### Getting a balanced `fire_source` pull
+
+The first pull (1 region, 10 days) landed 1449/1472 rows as `Wildfire` — only 15
+`Industrial/Urban Fire`, 4 `Offshore`, 0 `Agricultural Fire` with enough
+samples to train on. `INDIA_BBOX` already covers the whole country, so a
+wider pull is mostly about **date range/season**, not geography — target the
+Punjab/Haryana stubble-burning season (roughly Oct-Dec) to get real
+`Agricultural Fire` representation:
+
+```bash
+python build_dataset.py --start 2023-10-01 --end 2024-01-15 --out output/data_cleaned.csv
+```
+
+`train.py`'s fire-source trainer silently drops any class with fewer than 5
+examples (`counts >= 5` guard, needed for `StratifiedKFold`) — after a pull,
+check `dataset["fire_source"].value_counts()` (printed at the end of
+`build_dataset.py`) before assuming all 5 classes will actually train.
 
 ## Known limitations to refine in Phase 2
 

@@ -33,14 +33,15 @@ export default function InfoSection({ meta }: { meta: MetaResponse }) {
 
         <Reveal delay={0.1}>
           <AnimatedAccordion title="Fire Source Model Information">
-            {meta.fire_source_available ? (
+            {meta.fire_source_available && meta.fire_source_performance ? (
               <div className="space-y-2 text-[15px] leading-[1.6] text-mist">
-                <p>Algorithm: XGBoost Classifier</p>
-                <p>Current source categories: Vegetation Fire, Other Land Source, Offshore, Unknown</p>
-                <p className="text-[13px] text-[#e6b878]">
-                  This is not yet a Forest / Agriculture / Industrial classifier. A dedicated labelled dataset is
-                  required for those categories.
+                <p>Algorithm: {meta.fire_source_performance.model} Classifier</p>
+                <p>Source categories: {meta.fire_source_performance.classes.join(', ')}</p>
+                <p>
+                  Cross-validated accuracy: {meta.fire_source_performance.accuracy}% (
+                  {meta.fire_source_performance.dataset_rows} rows)
                 </p>
+                <p className="text-[13px] text-[#e6b878]">{meta.fire_source_performance.caveat}</p>
               </div>
             ) : (
               <p className="text-[15px] text-mist">Fire Source model files are not available.</p>

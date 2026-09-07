@@ -1,8 +1,15 @@
 import { AlertOctagon, AlertTriangle, Info, CheckCircle2 } from 'lucide-react'
 import SpotlightCard from './fx/SpotlightCard'
 
+// Vegetation-like sources (natural vegetation, current + legacy model) get the
+// generic risk copy; unclassified sentinels (model unavailable / errored) get
+// neither. Everything else — Agricultural, Industrial/Urban, Offshore, Other,
+// Unknown, and the legacy 'Other Land Source' — is a land-source alert.
+const VEGETATION_LIKE = ['Wildfire', 'Vegetation Fire']
+const UNCLASSIFIED = ['Not Available', 'Prediction Error']
+
 export default function AlertAssessment({ predictedRisk, fireSource }: { predictedRisk: string; fireSource: string }) {
-  const landSource = fireSource === 'Other Land Source'
+  const landSource = !VEGETATION_LIKE.includes(fireSource) && !UNCLASSIFIED.includes(fireSource)
   const highRisk = predictedRisk.toLowerCase() === 'high'
 
   if (landSource && highRisk) {
@@ -13,7 +20,7 @@ export default function AlertAssessment({ predictedRisk, fireSource }: { predict
           <div>
             <h3 className="text-[18px] font-semibold text-[#e8a898]">High Priority Alert</h3>
             <p className="mt-1 text-[15px] text-mist">
-              The detected hotspot is classified as <b className="text-bone">Other Land Source</b> and the
+              The detected hotspot is classified as <b className="text-bone">{fireSource}</b> and the
               predicted fire risk is <b className="text-bone">HIGH</b>. Immediate verification and monitoring are
               recommended.
             </p>
@@ -41,7 +48,7 @@ export default function AlertAssessment({ predictedRisk, fireSource }: { predict
       <SpotlightCard className="p-6">
         <div className="flex items-center gap-3">
           <Info size={22} strokeWidth={1.5} className="text-fog" aria-hidden="true" />
-          <p className="text-[15px] text-mist">Other Land Source detected. Additional verification is recommended.</p>
+          <p className="text-[15px] text-mist">{fireSource} detected. Additional verification is recommended.</p>
         </div>
       </SpotlightCard>
     )

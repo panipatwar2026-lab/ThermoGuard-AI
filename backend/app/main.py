@@ -1,8 +1,9 @@
+import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from . import ml
+from . import firms, ml, osm
 from .report import create_pdf_report
 from .schemas import PredictRequest, PredictResponse, RiskProbability
 
@@ -116,6 +117,29 @@ def meta():
                 "estimate, especially of the Medium class."
             ),
         },
+        "fire_source_performance": (
+            {
+                # Real 5-fold stratified CV on real ESA WorldCover land-cover
+                # classes (see data-pipeline/train.py and
+                # data-pipeline/output/models/metrics.json).
+                "model": "XGBoost",
+                "classes": list(ml.fire_source_encoder.classes_),
+                "dataset_rows": 30196,
+                "accuracy": 87.79,
+                "verified": True,
+                "caveat": (
+                    "Real 5-fold cross-validated accuracy on real ESA WorldCover "
+                    "land-cover classes (a correlate of likely fire source, not a "
+                    "confirmed cause). Strong on Agricultural Fire (F1 0.94, 23001 "
+                    "rows) and Unknown (F1 0.88, 105 rows); moderate on Wildfire "
+                    "(F1 0.66) and Other (F1 0.65); weaker on Industrial/Urban Fire "
+                    "(F1 0.55, 1238 rows) and Offshore (F1 0.24, only 255 rows). "
+                    "See data-pipeline/README.md for how to pull more balanced data."
+                ),
+            }
+            if ml.fire_source_model is not None
+            else None
+        ),
     }
 
 
@@ -148,3 +172,29 @@ def report(req: PredictRequest):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=ThermoGuard_AI_Report.pdf"},
     )
+
+
+@app.get("/api/fires")
+def fires(bbox: str = firms.MAHARASHTRA_BBOX, days: int = 1):
+    try:
+        rows = firms.fetch_live_fires(bbox=bbox, days=days)
+    except firms.MissingMapKeyError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"NASA FIRMS request failed: {e}")
+
+    return {
+        "success": True,
+        "count": len(rows),
+        "source": "NASA FIRMS",
+        "satellite": firms.DEFAULT_SOURCE,
+        "fires": rows,
+    }
+
+
+@app.get("/api/infrastructure")
+def infrastructure(lat: float, lon: float):
+    try:
+        return osm.fetch_infrastructure(lat, lon)
+    except requests.RequestException as e:
+        raise HTTPException(status_code=502, detail=f"OpenStreetMap request failed: {e}")

@@ -47,10 +47,14 @@ RISK_FEATURE_COLUMNS = [
 ]
 
 # Matches the fields backend/app/ml.py sends to the fire-source model
-# (fire_source_features.pkl) — drops lat/long/type since those are now
-# what we're trying to predict a real-world correlate of, not an input
-# that already gives the answer away.
+# (fire_source_features.pkl). Includes latitude/longitude: the fire_source
+# label is derived FROM land cover at that exact point, so location is the
+# causal signal, not leakage — dropping it left the model unable to predict
+# anything but the time-of-year majority class regardless of where the
+# hotspot actually is. `type` (FIRMS's own field) stays excluded since it
+# nearly answers fire_source directly (see data-pipeline/README.md).
 FIRE_SOURCE_FEATURE_COLUMNS = [
+    "latitude", "longitude",
     "brightness", "scan", "track", "acq_time", "bright_t31",
     "year", "month", "day", "day_of_year", "day_of_week", "week_of_year",
     "hour", "minute", "is_weekend",

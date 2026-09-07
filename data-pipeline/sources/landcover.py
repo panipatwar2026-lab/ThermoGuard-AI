@@ -15,6 +15,11 @@ product user manual):
     90  Herbaceous wetland      95  Mangroves
     100 Moss and lichen
 
+Fire-source mapping: natural vegetation classes (10/20/30/90/95) -> Wildfire,
+Cropland (40) -> Agricultural Fire, Built-up (50) -> Industrial/Urban Fire,
+water (80) -> Offshore, bare/snow/moss (60/70/100) -> Other. This is a
+land-cover correlate of likely fire source, not a confirmed-cause label.
+
 Batched like sources/burned_area.py: each native tile is 36000x36000 (10m)
 pixels — a per-row point read is a network round-trip per hotspot, ~1.5-4s
 each once you account for query latency, so thousands of rows would take
@@ -39,17 +44,17 @@ WORLDCOVER_BUCKET = "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2
 OVERVIEW_SIZE = 1200
 
 CLASS_TO_FIRE_SOURCE = {
-    10: "Vegetation Fire",   # Tree cover
-    20: "Vegetation Fire",   # Shrubland
-    30: "Vegetation Fire",   # Grassland
-    40: "Vegetation Fire",   # Cropland
-    50: "Other Land Source",  # Built-up / urban-industrial
-    60: "Other Land Source",  # Bare / sparse vegetation
-    70: "Other Land Source",  # Snow and ice
-    80: "Offshore",           # Permanent water bodies
-    90: "Vegetation Fire",   # Herbaceous wetland
-    95: "Vegetation Fire",   # Mangroves
-    100: "Other Land Source",  # Moss and lichen
+    10: "Wildfire",              # Tree cover
+    20: "Wildfire",              # Shrubland
+    30: "Wildfire",              # Grassland
+    40: "Agricultural Fire",     # Cropland
+    50: "Industrial/Urban Fire",  # Built-up
+    60: "Other",                 # Bare / sparse vegetation
+    70: "Other",                 # Snow and ice
+    80: "Offshore",              # Permanent water bodies
+    90: "Wildfire",              # Herbaceous wetland
+    95: "Wildfire",              # Mangroves
+    100: "Other",                # Moss and lichen
 }
 
 

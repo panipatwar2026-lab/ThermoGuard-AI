@@ -64,6 +64,73 @@ export interface MetaResponse {
     verified: boolean
     caveat: string
   }
+  fire_source_performance: {
+    model: string
+    classes: string[]
+    dataset_rows: number
+    accuracy: number
+    verified: boolean
+    caveat: string
+  } | null
 }
 
 export type RiskLevel = 'Low' | 'Medium' | 'High' | string
+
+/** Raw NASA FIRMS hotspot row — CSV columns passed through as strings. */
+export interface FireRecord {
+  latitude?: string
+  longitude?: string
+  lat?: string
+  lon?: string
+  lng?: string
+  bright_ti4?: string
+  brightness?: string
+  bright_ti11?: string
+  frp?: string
+  FRP?: string
+  confidence?: string
+  confidence_level?: string
+  acq_date?: string
+  acq_time?: string
+  daynight?: string
+  satellite?: string
+  id?: string
+  hotspot_id?: string
+  [key: string]: string | undefined
+}
+
+export interface FiresResponse {
+  success: boolean
+  count: number
+  source: string
+  satellite: string
+  fires: FireRecord[]
+}
+
+export interface InfrastructureCategory {
+  count: number
+  nearest: string | null
+}
+
+export interface InfrastructureResponse {
+  success: boolean
+  source: string
+  searchRadius: string
+  location: { latitude: number; longitude: number }
+  industrial: InfrastructureCategory
+  roads: InfrastructureCategory
+  settlements: InfrastructureCategory
+}
+
+export type AiRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
+export interface AiRisk {
+  score: number
+  risk: AiRiskLevel
+  brightness: number
+  frp: number
+  confidence: string
+  brightnessScore: number
+  frpScore: number
+  confidenceScore: number
+}

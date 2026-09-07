@@ -4,8 +4,8 @@ AI-based wildfire risk prediction and fire source analysis, built on NASA satell
 
 The project has three active parts:
 
-- **`backend/`** — a FastAPI service that loads the trained XGBoost models and exposes prediction, fire-source classification, and PDF-report endpoints.
-- **`frontend/`** — a React + TypeScript + Tailwind CSS single-page app that drives those endpoints, with a live-slider risk simulator, a fire location map, and a downloadable PDF report.
+- **`backend/`** — a FastAPI service that loads the trained XGBoost models and exposes prediction, fire-source classification, PDF-report, live NASA FIRMS hotspot, and OSM infrastructure-proximity endpoints.
+- **`frontend/`** — a React + TypeScript + Tailwind CSS app with two routes: `/` is a live command-center dashboard (map of NASA FIRMS hotspots, heuristic risk gauge, forecast panel), and `/analyze` is the ML risk-prediction flow (live-slider simulator, fire location map, downloadable PDF report). Selecting a hotspot on the dashboard and running "AI Prediction" carries its fields into `/analyze` to prefill a real model prediction.
 - **`data-pipeline/`** — builds real, sourced training data (real burned-area outcomes, real land-cover classes) and trains the models `backend/` serves. See `data-pipeline/README.md`.
 
 Trained model artifacts live in `models/` (see `models/README.md` for which ones are actually active vs. retired). Superseded training scripts and old evaluation artifacts live in `legacy/`, kept for reference only.
@@ -89,6 +89,17 @@ source venv/bin/activate
 pip install -r backend/requirements.txt
 ```
 
+The dashboard's live hotspot feed needs a free NASA FIRMS key — register at
+https://firms.modaps.eosdis.nasa.gov/api/map_key/ (instant, no approval wait)
+and set it as an environment variable before starting the server (never commit it):
+
+```bash
+# Windows
+set NASA_FIRMS_MAP_KEY=your-key-here
+# macOS / Linux
+export NASA_FIRMS_MAP_KEY=your-key-here
+```
+
 Run the API server (from the repo root, so it can find the `.pkl` model files):
 
 ```bash
@@ -149,16 +160,20 @@ THERMOGUARD-ML/
 │   ├── app/
 │   │   ├── main.py        # FastAPI app, route wiring
 │   │   ├── ml.py           # model loading, feature engineering, prediction
-│   │   ├── report.py        # PDF report generation
-│   │   └── schemas.py        # request/response models
+│   │   ├── firms.py         # live NASA FIRMS hotspot feed (dashboard map)
+│   │   ├── osm.py            # OSM Overpass infrastructure-proximity lookup
+│   │   ├── report.py          # PDF report generation
+│   │   └── schemas.py          # request/response models
 │   └── requirements.txt
 ├── frontend/
 │   ├── Dockerfile
 │   ├── nginx.conf              # serves the built app + proxies /api to the backend
 │   ├── src/
+│   │   ├── pages/            # DashboardPage (landing) + AnalyzePage (ML prediction), routed via react-router
 │   │   ├── components/     # UI sections (form, results, charts, map, ...)
+│   │   ├── components/dashboard/ # live hotspot map, risk/forecast panels
 │   │   ├── components/fx/   # animated UI primitives
-│   │   ├── lib/               # API client, helpers
+│   │   ├── lib/               # API client, helpers, heuristic risk scorer
 │   │   └── App.tsx
 │   └── package.json
 ├── data-pipeline/              # real, sourced training data + the canonical train.py
@@ -177,4 +192,4 @@ THERMOGUARD-ML/
 
 - **Risk model (v2, currently live)** is trained on real, sourced outcome labels — did the hotspot correspond to an actual MODIS-mapped burn (`data-pipeline/`) — instead of the original FRP-threshold-derived label. Honestly evaluated at **81.6% cross-validated accuracy**, but on a deliberately small first pull (1,472 rows, 10 days, one region): strong on Low/High risk, weak on Medium (the genuinely ambiguous middle class). See `data-pipeline/README.md` for how to pull more data and retrain.
 - **Fire Detection** is a preliminary rule-based thermal screening (FRP ≥ 2.40 and brightness difference ≥ 15), not a separately trained binary Fire/No-Fire classifier.
-- **Fire Source** model is still the original one, trained on FIRMS's own `type` field rather than real land-cover data — `data-pipeline/sources/landcover.py` provides a real replacement, but this session's small pull had too few non-vegetation examples (15 Other Land Source vs. 1,449 Vegetation Fire) to train a meaningful classifier from it. Needs a more geographically/seasonally diverse pull first.
+- **Fire Source model (v2, currently live)** is a 6-class classifier (Wildfire, Agricultural Fire, Industrial/Urban Fire, Offshore, Other, Unknown) trained on real ESA WorldCover land-cover classes via `data-pipeline/sources/landcover.py`, on a 30,196-row pull spanning all of India, Oct 2023-Jan 2024 (covers the Punjab/Haryana stubble-burning season). 82.0% CV accuracy overall, but the classes are far from balanced (76% Agricultural Fire) — strong on Agricultural Fire (F1 0.91), weaker on Wildfire (F1 0.51), and weak on the rarer Industrial/Urban Fire and Offshore classes (F1 0.13 / 0.07). Land cover at the hotspot's location is a correlate of likely fire source, **not a confirmed cause** — see `data-pipeline/output/models/metrics.json` for the full per-class report and `data-pipeline/README.md` for how to pull a more balanced dataset and retrain.

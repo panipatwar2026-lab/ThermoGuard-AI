@@ -48,10 +48,9 @@ export default function ResultsSection({ form, result }: { form: PredictRequest;
       <Reveal>
         <SpotlightCard className="p-6">
           <p className="text-[15px] leading-[1.6] text-mist">
-            <b className="text-bone">Dataset Limitation:</b> the current NASA hotspot dataset does not directly
-            provide Forest / Agriculture / Industrial labels. Source analysis therefore uses hotspot categories such
-            as Vegetation Fire, Other Land Source, Offshore and Unknown. A separate labelled dataset is required for
-            genuine Forest / Agriculture / Industrial classification.
+            <b className="text-bone">Dataset Limitation:</b> fire source is classified from real ESA WorldCover
+            land cover at the hotspot's location — Wildfire, Agricultural Fire, Industrial/Urban Fire, Offshore,
+            Other, and Unknown. This is a land-cover correlate of likely fire source, not a confirmed cause.
           </p>
         </SpotlightCard>
       </Reveal>

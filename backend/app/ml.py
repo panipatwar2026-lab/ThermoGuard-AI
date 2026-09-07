@@ -22,9 +22,13 @@ MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_risk_v2.pkl")
 ENCODER_FILE = os.path.join(MODELS_DIR, "label_encoder_risk_v2.pkl")
 FEATURE_FILE = os.path.join(MODELS_DIR, "feature_columns_risk_v2.pkl")
 
-FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_model.pkl")
-FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder.pkl")
-FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features.pkl")
+# v2: retrained on real ESA WorldCover land-cover classes (6-class: Wildfire,
+# Agricultural Fire, Industrial/Urban Fire, Offshore, Other, Unknown) via
+# data-pipeline/, replacing the original model trained on FIRMS's own `type`
+# field. See data-pipeline/README.md and output/models/metrics.json.
+FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_v2.pkl")
+FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder_v2.pkl")
+FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features_v2.pkl")
 
 
 class ModelLoadError(Exception):

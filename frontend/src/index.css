@@ -22,6 +22,7 @@
   --color-sage: #7fae8e;
   --color-amber-dim: #c9974f;
   --color-rose-dim: #c47768;
+  --color-rose: #d9503e;
 
   /* Typography */
   --font-display: 'Playfair Display', ui-serif, Georgia, serif;
@@ -85,4 +86,11 @@ button, a {
 .leaflet-container {
   background: var(--color-onyx) !important;
   font-family: var(--font-sans);
+}
+
+/* Recolors free OpenStreetMap raster tiles to a dark theme — no tile
+   provider account/API key needed (unlike CARTO's basemap tiles, which now
+   require one for anonymous access). */
+.dark-tiles .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(0.85) contrast(0.95) saturate(0.6);
 }

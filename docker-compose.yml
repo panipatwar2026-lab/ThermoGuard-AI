@@ -5,6 +5,8 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
+    environment:
+      - NASA_FIRMS_MAP_KEY=${NASA_FIRMS_MAP_KEY}
 
   frontend:
     build:

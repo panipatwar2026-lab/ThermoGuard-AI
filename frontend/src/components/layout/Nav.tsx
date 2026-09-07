@@ -7,7 +7,7 @@ export default function Nav() {
   const reduceMotion = useReducedMotion()
 
   return (
-    <header className="sticky top-0 z-50 border-b border-graphite bg-obsidian/80 backdrop-blur-md">
+    <header className="sticky top-0 z-[1100] border-b border-graphite bg-obsidian/95 backdrop-blur-md">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-full focus:bg-paper-white focus:px-4 focus:py-2 focus:text-[14px] focus:text-black"
