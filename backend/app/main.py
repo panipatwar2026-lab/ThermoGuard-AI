@@ -175,7 +175,7 @@ def report(req: PredictRequest):
 
 
 @app.get("/api/fires")
-def fires(bbox: str = firms.MAHARASHTRA_BBOX, days: int = 1):
+def fires(bbox: str = firms.INDIA_BBOX, days: int = 1):
     try:
         rows = firms.fetch_live_fires(bbox=bbox, days=days)
     except firms.MissingMapKeyError as e:

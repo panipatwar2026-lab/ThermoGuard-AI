@@ -17,8 +17,9 @@ import requests
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
 
-# Maharashtra bounding box (west, south, east, north) — dashboard's default scope.
-MAHARASHTRA_BBOX = "72.5,15.5,80.0,22.5"
+# India bounding box (west, south, east, north) — dashboard's default scope,
+# matches the map's INDIA_BOUNDS in HotspotMap.tsx.
+INDIA_BBOX = "68.0,6.0,97.5,37.5"
 
 
 class MissingMapKeyError(RuntimeError):
@@ -37,7 +38,7 @@ def _map_key() -> str:
 
 
 def fetch_live_fires(
-    bbox: str = MAHARASHTRA_BBOX,
+    bbox: str = INDIA_BBOX,
     days: int = 1,
     source: str = DEFAULT_SOURCE,
 ) -> list[dict]:

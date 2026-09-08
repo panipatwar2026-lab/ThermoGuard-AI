@@ -10,8 +10,16 @@ import math
 
 import requests
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# overpass-api.de is the reference instance but is frequently overloaded
+# (504 Gateway Timeout) under public load. Fall back through mirrors so a
+# single instance being down doesn't take out the infrastructure panel.
+OVERPASS_URLS = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.osm.ch/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+]
 SEARCH_RADIUS_M = 5000
+REQUEST_TIMEOUT_S = 12
 
 
 def _overpass_query(lat: float, lon: float) -> str:
@@ -46,18 +54,29 @@ def _format_distance(km: float | None) -> str | None:
     return f"{km:.2f} km"
 
 
+def _query_overpass(lat: float, lon: float) -> list[dict]:
+    last_error: Exception | None = None
+    for url in OVERPASS_URLS:
+        try:
+            resp = requests.post(
+                url,
+                data=_overpass_query(lat, lon),
+                headers={
+                    "Content-Type": "text/plain",
+                    "User-Agent": "ThermoGuard-AI/1.0 (wildfire risk dashboard)",
+                },
+                timeout=REQUEST_TIMEOUT_S,
+            )
+            resp.raise_for_status()
+            return resp.json().get("elements", [])
+        except requests.RequestException as e:
+            last_error = e
+            continue
+    raise last_error  # type: ignore[misc]
+
+
 def fetch_infrastructure(lat: float, lon: float) -> dict:
-    resp = requests.post(
-        OVERPASS_URL,
-        data=_overpass_query(lat, lon),
-        headers={
-            "Content-Type": "text/plain",
-            "User-Agent": "ThermoGuard-AI/1.0 (wildfire risk dashboard)",
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    elements = resp.json().get("elements", [])
+    elements = _query_overpass(lat, lon)
 
     counts = {"industrial": 0, "roads": 0, "settlements": 0}
     nearest: dict[str, float | None] = {"industrial": None, "roads": None, "settlements": None}

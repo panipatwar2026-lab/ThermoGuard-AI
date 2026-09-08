@@ -22,6 +22,7 @@ export default function RiskPanel({
   infrastructure,
   infrastructureLoading,
   infrastructureError,
+  hasFires = true,
 }: {
   fire: FireRecord | null
   ai: AiRisk | null
@@ -29,11 +30,16 @@ export default function RiskPanel({
   infrastructure: InfrastructureResponse | null
   infrastructureLoading: boolean
   infrastructureError: boolean
+  hasFires?: boolean
 }) {
   if (!fire || !ai) {
     return (
       <SpotlightCard className="p-6">
-        <p className="text-[15px] text-mist">Select a hotspot on the map for a full risk breakdown.</p>
+        <p className="text-[15px] text-mist">
+          {hasFires
+            ? 'Select a hotspot on the map for a full risk breakdown.'
+            : 'No active hotspots detected in this region right now. Check back later or widen the search area.'}
+        </p>
       </SpotlightCard>
     )
   }

@@ -154,7 +154,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-4">
-              <AlertBanner ai={selectedAi} />
+              <AlertBanner ai={selectedAi} hasFires={fires.length > 0} />
               <RiskPanel
                 fire={selectedFire}
                 ai={selectedAi}
@@ -162,6 +162,7 @@ export default function DashboardPage() {
                 infrastructure={infrastructure}
                 infrastructureLoading={infrastructureLoading}
                 infrastructureError={infrastructureError}
+                hasFires={fires.length > 0}
               />
             </div>
           </div>

@@ -28,11 +28,13 @@ const ICONS: Record<AiRisk['risk'], typeof ShieldCheck> = {
   LOW: ShieldCheck,
 }
 
-export default function AlertBanner({ ai }: { ai: AiRisk | null }) {
+export default function AlertBanner({ ai, hasFires = true }: { ai: AiRisk | null; hasFires?: boolean }) {
   if (!ai) {
     return (
       <div className="rounded-[10px] border border-graphite bg-onyx p-6 text-[15px] text-mist">
-        Select a hotspot on the map to see its AI alert assessment.
+        {hasFires
+          ? 'Select a hotspot on the map to see its AI alert assessment.'
+          : 'No active hotspots detected in this region right now. Check back later or widen the search area.'}
       </div>
     )
   }
