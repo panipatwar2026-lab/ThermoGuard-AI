@@ -14,6 +14,8 @@ import os
 
 import requests
 
+from .retry import retry_with_backoff
+
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
 DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
 
@@ -46,8 +48,13 @@ def fetch_live_fires(
     row dicts keyed by the CSV's own column names."""
     map_key = _map_key()
     url = f"{FIRMS_BASE}/{map_key}/{source}/{bbox}/{days}"
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
+
+    def _get() -> requests.Response:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        return resp
+
+    resp = retry_with_backoff(_get, attempts=3, base_delay_s=1.0)
 
     reader = csv.DictReader(io.StringIO(resp.text))
     return list(reader)

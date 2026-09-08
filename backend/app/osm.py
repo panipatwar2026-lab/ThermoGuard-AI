@@ -10,6 +10,8 @@ import math
 
 import requests
 
+from .retry import retry_with_backoff
+
 # overpass-api.de is the reference instance but is frequently overloaded
 # (504 Gateway Timeout) under public load. Fall back through mirrors so a
 # single instance being down doesn't take out the infrastructure panel.
@@ -57,7 +59,8 @@ def _format_distance(km: float | None) -> str | None:
 def _query_overpass(lat: float, lon: float) -> list[dict]:
     last_error: Exception | None = None
     for url in OVERPASS_URLS:
-        try:
+
+        def _post() -> requests.Response:
             resp = requests.post(
                 url,
                 data=_overpass_query(lat, lon),
@@ -68,6 +71,10 @@ def _query_overpass(lat: float, lon: float) -> list[dict]:
                 timeout=REQUEST_TIMEOUT_S,
             )
             resp.raise_for_status()
+            return resp
+
+        try:
+            resp = retry_with_backoff(_post, attempts=2, base_delay_s=0.5)
             return resp.json().get("elements", [])
         except requests.RequestException as e:
             last_error = e
