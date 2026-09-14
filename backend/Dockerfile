@@ -10,8 +10,8 @@ COPY backend/app backend/app
 # Only the model files backend/app/ml.py actually loads (ml.py resolves
 # ROOT_DIR as three parents up from itself, i.e. this WORKDIR, then reads
 # from ROOT_DIR/models/).
-COPY models/thermoguard_risk_v2.pkl models/label_encoder_risk_v2.pkl models/feature_columns_risk_v2.pkl \
-     models/thermoguard_fire_source_v2.pkl models/fire_source_label_encoder_v2.pkl models/fire_source_features_v2.pkl \
+COPY models/thermoguard_risk_v3.pkl models/label_encoder_risk_v3.pkl models/feature_columns_risk_v3.pkl \
+     models/thermoguard_fire_source_v3.pkl models/fire_source_label_encoder_v3.pkl models/fire_source_features_v3.pkl \
      models/
 
 EXPOSE 8000

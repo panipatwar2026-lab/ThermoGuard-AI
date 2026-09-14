@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Fragment, useEffect } from 'react'
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import type { LatLngBoundsExpression } from 'leaflet'
 import { X } from 'lucide-react'
@@ -90,30 +90,45 @@ export default function HotspotMap({
         <ClickPicker onPick={onPickLocation} />
 
         {markers.map((m) => (
-          <CircleMarker
-            key={m.id}
-            center={m.latLng}
-            radius={m.id === selectedId ? 10 : 7}
-            pathOptions={{
-              color: riskHex(m.ai.risk),
-              fillColor: riskHex(m.ai.risk),
-              fillOpacity: m.id === selectedId ? 0.7 : 0.45,
-              weight: m.id === selectedId ? 2.5 : 1.5,
-            }}
-            eventHandlers={{ click: () => onSelect(m.fire, m.ai, m.id) }}
-          >
-            <Popup autoPan={false}>
-              <div className="text-[13px]">
-                <strong>{m.id}</strong>
-                <br />
-                Risk: {m.ai.risk} ({m.ai.score})
-                <br />
-                Brightness: {m.ai.brightness.toFixed(1)}
-                <br />
-                FRP: {m.ai.frp.toFixed(1)}
-              </div>
-            </Popup>
-          </CircleMarker>
+          <Fragment key={m.id}>
+            <CircleMarker
+              center={m.latLng}
+              radius={m.id === selectedId ? 11 : 8}
+              pathOptions={{
+                className: 'hotspot-pulse-ring',
+                color: riskHex(m.ai.risk),
+                fillColor: riskHex(m.ai.risk),
+                fillOpacity: 0.35,
+                weight: 2,
+              }}
+              interactive={false}
+            />
+            <CircleMarker
+              center={m.latLng}
+              radius={m.id === selectedId ? 11 : 8}
+              pathOptions={{
+                className: 'hotspot-dot',
+                color: '#ffffff',
+                fillColor: riskHex(m.ai.risk),
+                fillOpacity: m.id === selectedId ? 0.95 : 0.9,
+                weight: m.id === selectedId ? 3 : 2,
+                opacity: m.id === selectedId ? 1 : 0.9,
+              }}
+              eventHandlers={{ click: () => onSelect(m.fire, m.ai, m.id) }}
+            >
+              <Popup autoPan={false}>
+                <div className="text-[13px]">
+                  <strong>{m.id}</strong>
+                  <br />
+                  Risk: {m.ai.risk} ({m.ai.score})
+                  <br />
+                  Brightness: {m.ai.brightness.toFixed(1)}
+                  <br />
+                  FRP: {m.ai.frp.toFixed(1)}
+                </div>
+              </Popup>
+            </CircleMarker>
+          </Fragment>
         ))}
 
         {pickedLocation && (
@@ -161,7 +176,11 @@ export default function HotspotMap({
         <div className="flex flex-col gap-1.5">
           {RISK_LEVELS.map((level) => (
             <div key={level} className="flex items-center gap-2 text-mist">
-              <span className="h-[8px] w-[8px] rounded-full" style={{ backgroundColor: riskHex(level) }} aria-hidden="true" />
+              <span
+                className="h-[9px] w-[9px] rounded-full border border-white/80"
+                style={{ backgroundColor: riskHex(level) }}
+                aria-hidden="true"
+              />
               {level}
             </div>
           ))}

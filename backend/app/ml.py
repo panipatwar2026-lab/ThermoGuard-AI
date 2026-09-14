@@ -13,22 +13,31 @@ import pandas as pd
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR = os.path.join(ROOT_DIR, "models")
 
-# v2: trained on real, sourced labels (MODIS burned-area outcomes) via
-# data-pipeline/, replacing the FRP-threshold-derived risk_level the
-# original thermoguard_best.pkl was trained on. See data-pipeline/README.md
-# and output/models/metrics.json for the honest evaluation (81.6% CV
-# accuracy on a deliberately small, single-region/season first pull).
-MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_risk_v2.pkl")
-ENCODER_FILE = os.path.join(MODELS_DIR, "label_encoder_risk_v2.pkl")
-FEATURE_FILE = os.path.join(MODELS_DIR, "feature_columns_risk_v2.pkl")
+# v3: retrained on a 248,308-row pull (Jan 2025-Sep 2026, all India) via
+# data-pipeline/, replacing v2's small 1,472-row/10-day/1-region first pass.
+# Fit with sqrt-dampened class-balanced sample weights (see train.py's
+# softened_sample_weight) — plain fitting on this label distribution
+# (Low 84% of rows) let the model nearly ignore Medium risk entirely;
+# full inverse-frequency balancing overcorrected the other way (minority
+# recall up, precision collapsed, macro-F1 down). Sqrt damping was the
+# best of the three on held-out data. See data-pipeline/output/
+# models_2025_2026_softened/metrics.json for the full evaluation
+# (86.8% CV accuracy; Low F1 0.94, High F1 0.68, Medium F1 0.27).
+MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_risk_v3.pkl")
+ENCODER_FILE = os.path.join(MODELS_DIR, "label_encoder_risk_v3.pkl")
+FEATURE_FILE = os.path.join(MODELS_DIR, "feature_columns_risk_v3.pkl")
 
-# v2: retrained on real ESA WorldCover land-cover classes (6-class: Wildfire,
-# Agricultural Fire, Industrial/Urban Fire, Offshore, Other, Unknown) via
-# data-pipeline/, replacing the original model trained on FIRMS's own `type`
-# field. See data-pipeline/README.md and output/models/metrics.json.
-FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_v2.pkl")
-FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder_v2.pkl")
-FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features_v2.pkl")
+# v3: same 248,308-row pull, same sqrt-dampened class weighting, ESA
+# WorldCover land-cover classes (Wildfire, Agricultural Fire,
+# Industrial/Urban Fire, Offshore, Other, Unknown). Every minority class
+# improved over v2 (Offshore F1 0.07-0.24 -> 0.20, Industrial/Urban ->
+# 0.55) except Unknown and Agricultural Fire, which regressed slightly
+# (see data-pipeline/output/models_2025_2026_softened/metrics.json) —
+# an accepted tradeoff for a model trained on far more representative
+# data instead of a 30,196-row single-season pull.
+FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_v3.pkl")
+FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder_v3.pkl")
+FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features_v3.pkl")
 
 
 class ModelLoadError(Exception):

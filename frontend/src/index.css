@@ -94,3 +94,29 @@ button, a {
 .dark-tiles .leaflet-tile-pane {
   filter: invert(100%) hue-rotate(180deg) brightness(0.85) contrast(0.95) saturate(0.6);
 }
+
+/* Live hotspot indicator: the dot blinks in place while a ring expands and
+   fades outward from it, like a radar ping — makes an active hotspot read
+   as "live" at a glance instead of a static painted dot. transform-box:
+   fill-box is required so the SVG circle scales from its own center rather
+   than the SVG canvas's origin. */
+.hotspot-dot {
+  animation: hotspotBlink 1.8s ease-in-out infinite;
+}
+
+.hotspot-pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hotspotPulseRing 2.2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hotspotBlink {
+  0%, 100% { fill-opacity: 0.95; }
+  50% { fill-opacity: 0.5; }
+}
+
+@keyframes hotspotPulseRing {
+  0% { transform: scale(0.7); opacity: 0.75; }
+  100% { transform: scale(2.4); opacity: 0; }
+}

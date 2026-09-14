@@ -32,6 +32,19 @@ import pandas as pd
 from sklearn.metrics import ConfusionMatrixDisplay, accuracy_score, classification_report
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils.class_weight import compute_sample_weight
+
+
+def softened_sample_weight(y, power: float = 0.5):
+    """Full inverse-frequency 'balanced' weighting overcorrects on severe
+    imbalance (e.g. a class at <1% of rows): minority recall jumps but
+    precision craters as the model starts over-flagging everything as the
+    rare class, net macro-F1 goes DOWN not up. Damping the balanced weight
+    by a power < 1 (sqrt by default) keeps some minority-class boost
+    without the extreme swing — a documented middle ground between
+    ignoring imbalance entirely and fully correcting for it."""
+    full_balanced = compute_sample_weight("balanced", y)
+    return full_balanced**power
 from xgboost import XGBClassifier
 
 # Matches backend/app/ml.py's feature_columns exactly.
@@ -63,6 +76,40 @@ FIRE_SOURCE_FEATURE_COLUMNS = [
 ]
 
 
+def holdout_report(model_cls, X, y, label_encoder, test_size=0.3, **model_kwargs):
+    """Explicit 70/30 train/test split, reported alongside the CV estimate
+    below. CV is more robust for a small dataset, but a plain holdout is
+    the more literal, commonly-expected evaluation — kept as an additional
+    reported metric rather than a replacement.
+
+    Fits with balanced sample weights: a plain fit on an imbalanced label
+    distribution (e.g. Offshore at <1% of rows) lets the model ignore
+    minority classes entirely while still posting a high overall accuracy
+    (majority-class accuracy dominates the average) — balanced weighting
+    trades a little majority-class precision for actually learning the
+    minority classes, which is the whole point of a multi-class fire-source
+    or risk-level classifier."""
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, stratify=y, random_state=42
+    )
+
+    sample_weight = softened_sample_weight(y_train)
+    model = model_cls(**model_kwargs)
+    model.fit(X_train, y_train, sample_weight=sample_weight)
+    pred = model.predict(X_test)
+
+    report = classification_report(
+        y_test, pred, target_names=label_encoder.classes_, output_dict=True, zero_division=0
+    )
+
+    return {
+        "train_size": len(X_train),
+        "test_size": len(X_test),
+        "test_accuracy": float(accuracy_score(y_test, pred)),
+        "classification_report": report,
+    }
+
+
 def cross_validated_report(model_cls, X, y, label_encoder, n_splits=5, **model_kwargs):
     """Small dataset (a first real-labels pass, deliberately kept small
     per the plan) means a single train/test holdout would be noisy —
@@ -75,8 +122,9 @@ def cross_validated_report(model_cls, X, y, label_encoder, n_splits=5, **model_k
     all_true, all_pred = [], []
 
     for train_idx, test_idx in skf.split(X, y):
+        sample_weight = softened_sample_weight(y[train_idx])
         model = model_cls(**model_kwargs)
-        model.fit(X.iloc[train_idx], y[train_idx])
+        model.fit(X.iloc[train_idx], y[train_idx], sample_weight=sample_weight)
         pred = model.predict(X.iloc[test_idx])
 
         fold_accuracies.append(accuracy_score(y[test_idx], pred))
@@ -111,6 +159,15 @@ def train_risk_model(df: pd.DataFrame, out_dir: Path) -> dict:
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
 
+    cv["holdout_70_30"] = holdout_report(
+        XGBClassifier,
+        X, y, label_encoder,
+        n_estimators=300, max_depth=6, learning_rate=0.05,
+        subsample=0.9, colsample_bytree=0.9,
+        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
+    )
+
     # Final model trained on all data for serving (the CV above is purely
     # for an honest accuracy estimate, not the shipped artifact).
     final_model = XGBClassifier(
@@ -119,7 +176,7 @@ def train_risk_model(df: pd.DataFrame, out_dir: Path) -> dict:
         objective="multi:softmax", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
-    final_model.fit(X, y)
+    final_model.fit(X, y, sample_weight=softened_sample_weight(y))
 
     joblib.dump(final_model, out_dir / "thermoguard_risk.pkl")
     joblib.dump(label_encoder, out_dir / "label_encoder_risk.pkl")
@@ -170,12 +227,20 @@ def train_fire_source_model(df: pd.DataFrame, out_dir: Path) -> dict | None:
     cv["class_counts"] = counts.to_dict()
     cv["n_splits_used"] = n_splits
 
+    cv["holdout_70_30"] = holdout_report(
+        XGBClassifier,
+        X, y, label_encoder,
+        n_estimators=200, max_depth=5, learning_rate=0.05,
+        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
+    )
+
     final_model = XGBClassifier(
         n_estimators=200, max_depth=5, learning_rate=0.05,
         objective="multi:softmax", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
-    final_model.fit(X, y)
+    final_model.fit(X, y, sample_weight=softened_sample_weight(y))
 
     joblib.dump(final_model, out_dir / "thermoguard_fire_source.pkl")
     joblib.dump(label_encoder, out_dir / "label_encoder_fire_source.pkl")
@@ -201,6 +266,7 @@ def main():
     print("\nTraining risk model (5-fold stratified CV for an honest estimate)...")
     risk_cv = train_risk_model(df, out_dir)
     print(f"Risk model CV accuracy: {risk_cv['cv_mean_accuracy']:.4f} +/- {risk_cv['cv_std_accuracy']:.4f}")
+    print(f"Risk model 70/30 holdout test accuracy: {risk_cv['holdout_70_30']['test_accuracy']:.4f}")
 
     print("\nTraining fire-source model...")
     source_cv = train_fire_source_model(df, out_dir)
@@ -208,6 +274,7 @@ def main():
         print(f"SKIPPED: {source_cv['reason']}")
     elif source_cv:
         print(f"Fire-source model CV accuracy: {source_cv['cv_mean_accuracy']:.4f} +/- {source_cv['cv_std_accuracy']:.4f}")
+        print(f"Fire-source model 70/30 holdout test accuracy: {source_cv['holdout_70_30']['test_accuracy']:.4f}")
 
     metrics = {
         "dataset_rows": len(df),

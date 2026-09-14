@@ -97,44 +97,60 @@ def meta():
         "feature_importances": importances,
         "fire_source_available": ml.fire_source_model is not None,
         "performance": {
-            # Real, reproducible 5-fold stratified CV on genuine outcome-based
-            # labels (did the hotspot correspond to an actual MODIS-mapped
-            # burn) — see data-pipeline/train.py and
-            # data-pipeline/output/models/metrics.json. Replaces the old
-            # unverifiable 99.92%/126,935-sample claim tied to an
-            # FRP-threshold-derived label.
+            # v3: real 5-fold stratified CV + 70/30 holdout on genuine
+            # outcome-based labels (did the hotspot correspond to an actual
+            # MODIS-mapped burn), now on a 248,308-row pull (Jan 2025-Sep
+            # 2026, all India) instead of v2's 1,472-row/10-day/1-region
+            # first pass. Fit with sqrt-dampened class-balanced sample
+            # weights to keep the Medium class learnable without collapsing
+            # majority-class accuracy. See data-pipeline/train.py and
+            # data-pipeline/output/models_2025_2026_softened/metrics.json.
             "model": "XGBoost",
             "features": len(ml.feature_columns),
-            "test_samples": 1472,
-            "accuracy": 81.59,
+            "test_samples": 74493,
+            "accuracy": 86.68,
             "verified": True,
             "caveat": (
-                "Real 5-fold cross-validated accuracy on genuine burned-area "
-                "outcome labels, but from a deliberately small first pull "
-                "(10 days, one region) — strong on Low/High risk (F1 0.89/0.79), "
-                "weak on Medium (F1 0.21, the genuinely ambiguous middle class). "
-                "Expand data-pipeline's date range/geography for a more robust "
-                "estimate, especially of the Medium class."
+                "70/30 holdout test accuracy 86.68% (5-fold CV mean 86.79%) "
+                "on a 248,308-row pull spanning Jan 2025-Sep 2026, all India. "
+                "Strong on Low risk (F1 0.94), moderate on High (F1 0.68), "
+                "Medium improved from v2's F1 0.21 to F1 0.27 via balanced "
+                "sample weighting but is still the weakest class — it remains "
+                "the genuinely ambiguous middle category. See "
+                "data-pipeline/output/models_2025_2026_softened/metrics.json "
+                "for the full per-class report."
             ),
         },
         "fire_source_performance": (
             {
-                # Real 5-fold stratified CV on real ESA WorldCover land-cover
-                # classes (see data-pipeline/train.py and
-                # data-pipeline/output/models/metrics.json).
+                # v3: real 5-fold stratified CV + 70/30 holdout on real ESA
+                # WorldCover land-cover classes, now on a 248,308-row pull
+                # (Jan 2025-Sep 2026, all India) instead of v2's 30,196-row
+                # single-season pull. Fit with sqrt-dampened class-balanced
+                # sample weights — plain fitting on this label distribution
+                # let Offshore/Industrial/Unknown get swamped by the
+                # Wildfire/Agricultural majority; full balanced weighting
+                # overcorrected (minority recall up, precision collapsed,
+                # macro-F1 down). See data-pipeline/train.py and
+                # data-pipeline/output/models_2025_2026_softened/metrics.json.
                 "model": "XGBoost",
                 "classes": list(ml.fire_source_encoder.classes_),
-                "dataset_rows": 30196,
-                "accuracy": 87.79,
+                "dataset_rows": 248308,
+                "accuracy": 82.17,
                 "verified": True,
                 "caveat": (
-                    "Real 5-fold cross-validated accuracy on real ESA WorldCover "
-                    "land-cover classes (a correlate of likely fire source, not a "
-                    "confirmed cause). Strong on Agricultural Fire (F1 0.94, 23001 "
-                    "rows) and Unknown (F1 0.88, 105 rows); moderate on Wildfire "
-                    "(F1 0.66) and Other (F1 0.65); weaker on Industrial/Urban Fire "
-                    "(F1 0.55, 1238 rows) and Offshore (F1 0.24, only 255 rows). "
-                    "See data-pipeline/README.md for how to pull more balanced data."
+                    "70/30 holdout test accuracy 82.17% (5-fold CV mean 82.51%) "
+                    "on real ESA WorldCover land-cover classes (a correlate of "
+                    "likely fire source, not a confirmed cause), pulled Jan "
+                    "2025-Sep 2026 across all India. Strong on Wildfire (F1 0.86, "
+                    "135,956 rows) and Agricultural Fire (F1 0.81, 100,649 rows); "
+                    "moderate on Industrial/Urban Fire (F1 0.53, 4,169 rows) and "
+                    "Other (F1 0.59, 5,825 rows); weakest on Offshore (F1 0.18, "
+                    "1,229 rows) and Unknown (F1 0.64, 480 rows) — both improved "
+                    "several-fold in absolute row count over v2 but remain the "
+                    "rarest classes. See "
+                    "data-pipeline/output/models_2025_2026_softened/metrics.json "
+                    "for the full per-class report."
                 ),
             }
             if ml.fire_source_model is not None
