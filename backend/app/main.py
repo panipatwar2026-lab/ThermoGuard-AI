@@ -1,7 +1,12 @@
+from pathlib import Path
+
 import requests
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from . import firms, ml, osm
 from .report import create_pdf_report
@@ -194,6 +199,13 @@ def report(req: PredictRequest):
 def fires(bbox: str = firms.INDIA_BBOX, days: int = 1):
     try:
         rows = firms.fetch_live_fires(bbox=bbox, days=days)
+        stale = False
+        # No detections in the requested window (e.g. today's NRT pass not
+        # processed yet) — fall back to yesterday's data rather than showing
+        # an empty map.
+        if not rows and days == 1:
+            rows = firms.fetch_live_fires(bbox=bbox, days=2)
+            stale = True
     except firms.MissingMapKeyError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except requests.RequestException as e:
@@ -204,6 +216,7 @@ def fires(bbox: str = firms.INDIA_BBOX, days: int = 1):
         "count": len(rows),
         "source": "NASA FIRMS",
         "satellite": firms.DEFAULT_SOURCE,
+        "stale": stale,
         "fires": rows,
     }
 

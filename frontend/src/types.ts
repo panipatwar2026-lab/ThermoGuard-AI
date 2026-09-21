@@ -104,6 +104,7 @@ export interface FiresResponse {
   count: number
   source: string
   satellite: string
+  stale?: boolean
   fires: FireRecord[]
 }
 

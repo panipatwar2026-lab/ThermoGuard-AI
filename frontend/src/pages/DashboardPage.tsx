@@ -14,13 +14,14 @@ import { calculateAiRisk } from '../lib/aiRisk'
 import { buildPrefill, fireId, fireLatLng } from '../lib/fires'
 import type { AiRisk, FireRecord, InfrastructureResponse } from '../types'
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000
+const REFRESH_INTERVAL_MS = 60 * 1000
 
 export default function DashboardPage() {
   const navigate = useNavigate()
 
   const [fires, setFires] = useState<FireRecord[]>([])
   const [fetchError, setFetchError] = useState<string | null>(null)
+  const [staleFires, setStaleFires] = useState(false)
   const [riskFilter, setRiskFilter] = useState('ALL')
 
   const [selectedFire, setSelectedFire] = useState<FireRecord | null>(null)
@@ -37,6 +38,7 @@ export default function DashboardPage() {
     try {
       const res = await fetchFires(signal)
       setFires(res.fires)
+      setStaleFires(Boolean(res.stale))
       setFetchError(null)
     } catch (e: any) {
       if (e?.name === 'AbortError') return
@@ -129,6 +131,12 @@ export default function DashboardPage() {
               >
                 Retry
               </button>
+            </div>
+          )}
+
+          {!fetchError && staleFires && fires.length > 0 && (
+            <div className="mb-6 rounded-[10px] border border-amber-500/40 bg-amber-500/10 p-4 text-[14px] text-amber-200">
+              No new hotspots detected in the last 24h — showing the most recent available NASA FIRMS data.
             </div>
           )}
 

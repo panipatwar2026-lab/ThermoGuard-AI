@@ -5,6 +5,7 @@ frontend/dist
 venv/
 __pycache__/
 *.pyc
+.env
 
 # Unused model variants not loaded by backend/app/ml.py — keeps the
 # backend build context small. Add back here (and to backend/Dockerfile)
