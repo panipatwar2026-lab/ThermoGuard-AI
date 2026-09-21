@@ -10,13 +10,17 @@ NASA_FIRMS_MAP_KEY environment variable. Must never be committed to git.
 
 import csv
 import io
+import logging
 import os
 
 import requests
 
 from .retry import retry_with_backoff
 
+logger = logging.getLogger(__name__)
+
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+MAPKEY_STATUS_URL = "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/"
 DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
 
 # India bounding box (west, south, east, north) — dashboard's default scope,
@@ -39,6 +43,13 @@ def _map_key() -> str:
     return key
 
 
+def _redact_key(text: str, map_key: str) -> str:
+    """Strip the raw MAP_KEY out of a requests exception message — those
+    messages often embed the full request URL, which for fetch_live_fires
+    has the key in the path itself."""
+    return text.replace(map_key, "***") if map_key else text
+
+
 def fetch_live_fires(
     bbox: str = INDIA_BBOX,
     days: int = 1,
@@ -49,12 +60,57 @@ def fetch_live_fires(
     map_key = _map_key()
     url = f"{FIRMS_BASE}/{map_key}/{source}/{bbox}/{days}"
 
+    logger.info("FIRMS request started source=%s bbox=%s days=%s", source, bbox, days)
+
     def _get() -> requests.Response:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         return resp
 
-    resp = retry_with_backoff(_get, attempts=3, base_delay_s=1.0)
+    try:
+        resp = retry_with_backoff(_get, attempts=3, base_delay_s=1.0)
+    except requests.RequestException as e:
+        logger.error(
+            "FIRMS request failed source=%s bbox=%s error_type=%s error=%s",
+            source,
+            bbox,
+            type(e).__name__,
+            _redact_key(str(e), map_key),
+        )
+        raise
+
+    logger.info(
+        "FIRMS request succeeded source=%s bbox=%s status=%s",
+        source,
+        bbox,
+        resp.status_code,
+    )
 
     reader = csv.DictReader(io.StringIO(resp.text))
     return list(reader)
+
+
+def check_map_key_status(map_key: str) -> dict:
+    """Diagnostic-only: hits FIRMS's lightweight key-status endpoint (not
+    fetch_live_fires's real area/csv endpoint) to isolate whether the
+    server's egress can reach the FIRMS host at all. Never returns the raw
+    key or a full URL — safe to return straight from an API response."""
+    try:
+        resp = requests.get(MAPKEY_STATUS_URL, params={"MAP_KEY": map_key}, timeout=15)
+    except requests.RequestException as e:
+        return {
+            "dns_reachable": False,
+            "error_type": type(e).__name__,
+            "error": _redact_key(str(e), map_key),
+        }
+
+    try:
+        body = resp.json()
+    except ValueError:
+        body = resp.text[:500]
+
+    return {
+        "dns_reachable": True,
+        "firms_status": resp.status_code,
+        "firms_response": body,
+    }

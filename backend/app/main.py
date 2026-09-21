@@ -1,3 +1,5 @@
+import logging
+import os
 from pathlib import Path
 
 import requests
@@ -7,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+logging.basicConfig(level=logging.INFO)
 
 from . import firms, ml, osm
 from .report import create_pdf_report
@@ -219,6 +222,18 @@ def fires(bbox: str = firms.INDIA_BBOX, days: int = 1):
         "stale": stale,
         "fires": rows,
     }
+
+
+@app.get("/api/debug/firms")
+def debug_firms():
+    """TEMPORARY diagnostic endpoint for the Render/NASA FIRMS DNS issue.
+    Remove once the connectivity problem is resolved. Never returns the raw
+    NASA_FIRMS_MAP_KEY."""
+    key = os.environ.get("NASA_FIRMS_MAP_KEY")
+    if not key:
+        return {"key_configured": False, "dns_reachable": False}
+
+    return {"key_configured": True, **firms.check_map_key_status(key)}
 
 
 @app.get("/api/infrastructure")
