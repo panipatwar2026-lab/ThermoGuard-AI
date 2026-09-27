@@ -216,20 +216,20 @@ def _parse_bbox(bbox: str) -> str:
 
 
 @app.get("/api/fires")
-def fires(bbox: str = firms.INDIA_BBOX, days: int = Query(1, ge=1, le=10)):
+def fires(bbox: str = firms.INDIA_BBOX, hours: int = Query(24, ge=1, le=216)):
     bbox = _parse_bbox(bbox)
-    cached = _fires_cache.get((bbox, days))
+    cached = _fires_cache.get((bbox, hours))
     if cached and time.monotonic() - cached[0] < FIRES_CACHE_TTL_S:
         return cached[1]
 
     try:
-        rows = firms.fetch_latest_fires(bbox=bbox, days=days)
+        # Rolling window (default 24h), matching the FIRMS Fire Map default.
+        rows = firms.fetch_recent_fires(bbox=bbox, hours=hours)
         stale = False
-        # No detections in the requested window (e.g. today's NRT pass not
-        # processed yet) — fall back to yesterday's data rather than showing
-        # an empty map.
-        if not rows and days == 1:
-            rows = firms.fetch_latest_fires(bbox=bbox, days=2)
+        # Nothing in the window (rare, e.g. a NASA processing gap): widen to
+        # 48h rather than showing an empty map, and flag it.
+        if not rows and hours == 24:
+            rows = firms.fetch_recent_fires(bbox=bbox, hours=48)
             stale = True
     except firms.MissingMapKeyError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -241,12 +241,13 @@ def fires(bbox: str = firms.INDIA_BBOX, days: int = Query(1, ge=1, le=10)):
         "count": len(rows),
         "source": "NASA FIRMS",
         "satellite": ", ".join(firms.NRT_SOURCES),
-        # Newest detection, e.g. "2026-09-27 0550" (UTC) — rows are sorted newest first.
+        "window_hours": 48 if stale else hours,
+        # Newest detection, e.g. "2026-09-27 0550" (UTC); rows are sorted newest first.
         "latest": f"{rows[0]['acq_date']} {int(rows[0]['acq_time']):04d}" if rows else None,
         "stale": stale,
         "fires": rows,
     }
-    _fires_cache[(bbox, days)] = (time.monotonic(), body)
+    _fires_cache[(bbox, hours)] = (time.monotonic(), body)
     return body
 
 

@@ -11,7 +11,9 @@ NASA_FIRMS_MAP_KEY environment variable. Must never be committed to git.
 import csv
 import io
 import logging
+import math
 import os
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
@@ -123,3 +125,26 @@ def fetch_latest_fires(bbox: str = INDIA_BBOX, days: int = 1) -> list[dict]:
     # Newest first; acq_time is HHMM without zero padding.
     rows.sort(key=lambda r: (r.get("acq_date", ""), int(r.get("acq_time") or 0)), reverse=True)
     return rows
+
+
+def _acquired_at(row: dict) -> datetime | None:
+    try:
+        return datetime.strptime(
+            f"{row['acq_date']} {int(row['acq_time']):04d}", "%Y-%m-%d %H%M"
+        ).replace(tzinfo=timezone.utc)
+    except (KeyError, ValueError):
+        return None
+
+
+def fetch_recent_fires(bbox: str = INDIA_BBOX, hours: int = 24) -> list[dict]:
+    """Detections from the last `hours`, rolling, like the FIRMS Fire Map's
+    default "24 hrs" view. The Area API only takes whole UTC days (days=1 is
+    "since 00:00 UTC today"), so fetch enough days to cover the window and
+    trim by acquisition timestamp."""
+    days = min(10, math.ceil(hours / 24) + 1)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+    return [
+        row
+        for row in fetch_latest_fires(bbox=bbox, days=days)
+        if (t := _acquired_at(row)) is not None and t >= cutoff
+    ]

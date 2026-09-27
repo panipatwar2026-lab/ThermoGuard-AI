@@ -120,3 +120,20 @@ button, a {
   0% { transform: scale(0.7); opacity: 0.75; }
   100% { transform: scale(2.4); opacity: 0; }
 }
+
+/* Boot loader radar sweep (reduced-motion users get the static scope; the
+   global reduce rule above also stops it). */
+.boot-sweep {
+  animation: bootSweep 2.4s linear infinite;
+}
+
+@keyframes bootSweep {
+  to { transform: rotate(360deg); }
+}
+
+/* Phones pinch-zoom; the +/- buttons collide with the wrapped attribution. */
+@media (max-width: 639px) {
+  .leaflet-control-zoom {
+    display: none;
+  }
+}

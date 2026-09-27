@@ -1,5 +1,6 @@
 import type {
   FiresResponse,
+  HealthResponse,
   InfrastructureResponse,
   MetaResponse,
   PredictRequest,
@@ -27,6 +28,11 @@ export async function predict(req: PredictRequest, signal?: AbortSignal): Promis
 export async function fetchMeta(): Promise<MetaResponse> {
   const res = await fetch('/api/meta')
   return jsonOrThrow<MetaResponse>(res)
+}
+
+export async function fetchHealth(signal?: AbortSignal): Promise<HealthResponse> {
+  const res = await fetch('/api/health', { signal })
+  return jsonOrThrow<HealthResponse>(res)
 }
 
 export async function fetchFires(signal?: AbortSignal): Promise<FiresResponse> {

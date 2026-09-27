@@ -1,10 +1,11 @@
 """Smoke checks for request validation. Run: python -m backend.test_api"""
 
-from datetime import date, time
+from datetime import date, datetime, time, timedelta, timezone
+from unittest import mock
 
 from fastapi.testclient import TestClient
 
-from backend.app import ml
+from backend.app import firms, ml
 from backend.app.main import app
 
 client = TestClient(app)
@@ -23,10 +24,20 @@ def demo():
         assert r.status_code == 422, (bad, r.status_code)
 
     # Validation runs before any FIRMS/OSM call.
-    assert client.get("/api/fires", params={"days": 99}).status_code == 422
+    assert client.get("/api/fires", params={"hours": 999}).status_code == 422
     assert client.get("/api/fires", params={"bbox": "../../x"}).status_code == 422
     assert client.get("/api/infrastructure", params={"lat": 999, "lon": 0}).status_code == 422
     assert client.get("/api/debug/firms").status_code == 404
+
+    # Rolling window trims by acquisition time, not calendar day.
+    now = datetime.now(timezone.utc)
+    rows = [
+        {"acq_date": t.strftime("%Y-%m-%d"), "acq_time": str(int(t.strftime("%H%M")))}
+        for t in (now - timedelta(hours=2), now - timedelta(hours=23), now - timedelta(hours=30))
+    ]
+    with mock.patch.object(firms, "fetch_latest_fires", return_value=rows) as fetch:
+        assert len(firms.fetch_recent_fires(hours=24)) == 2
+        assert fetch.call_args.kwargs["days"] == 2
 
     # Hour feature comes from acq_time (as in training), not observation_time.
     df, _ = ml.build_input_data(

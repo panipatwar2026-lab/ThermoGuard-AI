@@ -63,7 +63,7 @@ export default function RiskPanel({
 
       <p className="mb-2 text-[14px] text-mist">{DESCRIPTIONS[ai.risk]}</p>
       <p className="mb-6 text-[12px] text-fog">
-        Quick heuristic from brightness, FRP and confidence — not the trained model. Use Run Prediction for the ML result.
+        Quick heuristic from brightness, FRP and confidence, not the trained model. Use Run Prediction for the ML result.
       </p>
 
       <div className="mb-6 border-t border-graphite pt-5">

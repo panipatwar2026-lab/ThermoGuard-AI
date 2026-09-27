@@ -176,9 +176,9 @@ For the live hotspot feed (`/api/fires`), verified against the actual code:
 3. Browser sends `GET /api/fires` (relative path).
 4. Vercel's rewrite (`frontend/vercel.json`) proxies this to the Render backend.
 5. FastAPI's `fires()` route (`backend/app/main.py`) receives the request.
-6. It calls `firms.fetch_live_fires(bbox, days=1)`.
+6. It calls `firms.fetch_recent_fires(bbox, hours=24)`, which fetches all four NRT satellites for the last two UTC days and keeps detections from the rolling last 24 hours (the same default window as the FIRMS Fire Map).
 7. That function requests NASA FIRMS's area-CSV endpoint, retrying transient failures.
-8. If zero rows come back for `days=1`, it re-requests with `days=2` and marks the response `stale: true`.
+8. If nothing falls in the last 24 hours, it widens to 48 hours and marks the response `stale: true`.
 9. The CSV response is parsed via `csv.DictReader` into a list of row dicts.
 10. `main.py` wraps the rows into a JSON response (`success`, `count`, `source`, `satellite`, `stale`, `fires`).
 11. The frontend receives this JSON and updates `fires` / `staleFires` state.
@@ -200,7 +200,7 @@ For the ML prediction flow (`/api/predict`), a user (manually, via the `/analyze
 | Auth | `NASA_FIRMS_MAP_KEY` env var, appended into the request path |
 | Response format | CSV, parsed via `csv.DictReader` |
 | Retry | up to 3 attempts, exponential backoff, only for transient errors (timeouts, connection errors, 5xx) — see `backend/app/retry.py` |
-| Stale fallback | if `days=1` returns zero rows, retries with `days=2` and flags the response `stale: true` |
+| Time window | rolling last 24 hours by acquisition time (FIRMS Fire Map default); widens to 48 hours with `stale: true` if empty |
 
 **Important — NASA FIRMS is near-real-time, not instantaneous.** A fire igniting does not appear in this dashboard the moment it starts. The actual chain is:
 
@@ -248,9 +248,9 @@ FastAPI application at `backend/app/main.py`.
 ### `GET /api/fires`
 
 - **Purpose**: returns live NASA FIRMS hotspots for the requested area.
-- **Query parameters**: `bbox` (default: India bounding box `68.0,6.0,97.5,37.5`), `days` (default: `1`).
-- **Stale-data behavior**: if the `days=1` request returns zero rows, the backend automatically retries with `days=2` and sets `"stale": true` in the response so the frontend can show a banner.
-- **Response fields**: `success`, `count`, `source`, `satellite`, `latest` (newest detection, `YYYY-MM-DD HHMM` UTC), `stale`, `fires` (raw FIRMS CSV row dicts plus a `source` field, newest first).
+- **Query parameters**: `bbox` (default: India bounding box `68.0,6.0,97.5,37.5`), `hours` (rolling window, default `24`, max `216`).
+- **Stale-data behavior**: if the last 24 hours contain no detections, the backend widens to 48 hours and sets `"stale": true` so the frontend can show a banner.
+- **Response fields**: `success`, `count`, `source`, `satellite`, `window_hours`, `latest` (newest detection, `YYYY-MM-DD HHMM` UTC), `stale`, `fires` (raw FIRMS CSV row dicts plus a `source` field, newest first).
 
 ## 📋 API Reference
 
@@ -549,7 +549,7 @@ Verified from the current codebase:
 - `NASA_FIRMS_MAP_KEY` is read from an environment variable, never hardcoded (`firms.py: _map_key()`).
 - `.env` is excluded via `.gitignore` and `.dockerignore` — never baked into a Docker image or committed.
 - The key is redacted out of any request-exception text before logging it (`_redact_key()`).
-- `/api/fires` validates `bbox` (four in-range floats) and `days` (1–10); `/api/predict` rejects unknown `confidence`/`daynight`/`version` values with 422.
+- `/api/fires` validates `bbox` (four in-range floats) and `hours` (1–216); `/api/predict` rejects unknown `confidence`/`daynight`/`version` values with 422.
 - FIRMS request logging never logs the key or the full request URL.
 - CORS middleware is explicitly configured (currently scoped to local dev origins).
 

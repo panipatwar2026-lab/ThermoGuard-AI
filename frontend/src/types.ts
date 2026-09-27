@@ -105,12 +105,20 @@ export interface FireRecord {
   [key: string]: string | undefined
 }
 
+export interface HealthResponse {
+  risk_model_ready: boolean
+  fire_source_model_ready: boolean
+  error: string | null
+}
+
 export interface FiresResponse {
   success: boolean
   count: number
   source: string
   satellite: string
   stale?: boolean
+  /** Rolling window the rows cover, in hours (24 unless stale). */
+  window_hours?: number
   /** Newest detection as "YYYY-MM-DD HHMM" (UTC). */
   latest?: string | null
   fires: FireRecord[]
