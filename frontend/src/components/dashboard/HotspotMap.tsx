@@ -1,11 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { CircleMarker, MapContainer, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, ZoomControl, useMap, useMapEvents } from 'react-leaflet'
+import type { GeoJsonObject } from 'geojson'
 import type { LatLngBoundsExpression } from 'leaflet'
 import { Maximize2, X } from 'lucide-react'
 import type { AiRisk, FireRecord } from '../../types'
 import { calculateAiRisk } from '../../lib/aiRisk'
-import { fireId, fireLatLng, formatAcq, sourceLabel } from '../../lib/fires'
-import { riskHex } from '../../lib/risk'
+import { AGE_BUCKETS, acquiredAt, ageHex, fireId, fireLatLng, formatAge, formatIst, latestAt, sourceLabel } from '../../lib/fires'
 import ShinyButton from '../fx/ShinyButton'
 
 // Same box the backend fetches (firms.INDIA_BBOX).
@@ -18,7 +18,6 @@ const PAN_BOUNDS: LatLngBoundsExpression = [
   [2.0, 62.0],
   [41.5, 103.5],
 ]
-const RISK_LEVELS = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
 
 function Recenter({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap()
@@ -39,6 +38,28 @@ function FitIndia({ nonce }: { nonce: number }) {
     map.fitBounds(INDIA_BOUNDS, { padding: [12, 12], animate: nonce > 0 })
   }, [nonce, map])
   return null
+}
+
+/** India's boundary (Government of India map, via DataMeet), drawn as a thin outline. */
+function IndiaOutline() {
+  const [data, setData] = useState<GeoJsonObject | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    fetch('/india-outline.geojson', { signal: controller.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setData)
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
+  if (!data) return null
+  return (
+    <GeoJSON
+      data={data}
+      interactive={false}
+      attribution="Boundary &copy; DataMeet"
+      style={{ color: '#f0b27a', weight: 2, opacity: 0.95, fill: false }}
+    />
+  )
 }
 
 /** Reports the map zoom so marker size can follow it. */
@@ -91,15 +112,22 @@ export default function HotspotMap({
   onClearPicked: () => void
   onAnalyzePicked: () => void
 }) {
+  // Clock for "3h ago" labels and age colours; ticks once a minute.
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
   const markers = fires
     .map((fire, index) => {
       const latLng = fireLatLng(fire)
       if (!latLng) return null
       const ai = calculateAiRisk(fire)
       const id = fireId(fire, index)
-      return { fire, ai, id, latLng }
+      const at = acquiredAt(fire.acq_date, fire.acq_time)
+      return { fire, ai, id, latLng, at, hex: ageHex(at, now) }
     })
-    .filter((m): m is { fire: FireRecord; ai: AiRisk; id: string; latLng: [number, number] } => m !== null)
+    .filter((m) => m !== null)
     .filter((m) => riskFilter === 'ALL' || m.ai.risk === riskFilter)
 
   const selected = markers.find((m) => m.id === selectedId)
@@ -138,6 +166,7 @@ export default function HotspotMap({
         />
 
         <ZoomControl position="bottomleft" />
+        <IndiaOutline />
         <FitIndia nonce={fitNonce} />
         <ZoomWatcher onZoom={setZoom} />
         <ClickPicker onPick={onPickLocation} />
@@ -151,8 +180,8 @@ export default function HotspotMap({
               radius={markerRadius(zoom, m.id === selectedId)}
               pathOptions={{
                 className: 'hotspot-pulse-ring',
-                color: riskHex(m.ai.risk),
-                fillColor: riskHex(m.ai.risk),
+                color: m.hex,
+                fillColor: m.hex,
                 fillOpacity: 0.35,
                 weight: 2,
               }}
@@ -165,7 +194,7 @@ export default function HotspotMap({
               pathOptions={{
                 className: 'hotspot-dot',
                 color: '#ffffff',
-                fillColor: riskHex(m.ai.risk),
+                fillColor: m.hex,
                 fillOpacity: m.id === selectedId ? 0.95 : 0.9,
                 weight: m.id === selectedId ? 3 : zoom < 5.5 ? 1 : 2,
                 opacity: m.id === selectedId ? 1 : 0.9,
@@ -182,7 +211,9 @@ export default function HotspotMap({
                   <br />
                   FRP: {m.ai.frp.toFixed(1)}
                   <br />
-                  {sourceLabel(m.fire.source)} · {formatAcq(m.fire.acq_date, m.fire.acq_time)}
+                  {sourceLabel(m.fire.source)}
+                  <br />
+                  Detected {formatIst(m.at)} ({formatAge(m.at, now)})
                 </div>
               </Popup>
             </CircleMarker>
@@ -211,8 +242,10 @@ export default function HotspotMap({
           <span>
             Latest{' '}
             <strong className="text-bone">
-              <span className="sm:hidden">{formatAcq(latest.slice(0, 10), latest.slice(11))?.slice(11)}</span>
-              <span className="hidden sm:inline">{formatAcq(latest.slice(0, 10), latest.slice(11))}</span>
+              <span className="sm:hidden">{formatIst(latestAt(latest), true)}</span>
+              <span className="hidden sm:inline">
+                {formatIst(latestAt(latest))} ({formatAge(latestAt(latest), now)})
+              </span>
             </strong>
           </span>
         )}
@@ -251,16 +284,16 @@ export default function HotspotMap({
       )}
 
       <div className="pointer-events-none absolute bottom-7 right-3 z-[1200] rounded-[10px] border border-graphite bg-onyx/85 px-3 py-2 text-[11px] backdrop-blur-sm sm:bottom-4 sm:right-4 sm:px-4 sm:py-3 sm:text-[12px]">
-        <div className="mb-1.5 font-semibold text-fog sm:mb-2">RISK LEVEL</div>
+        <div className="mb-1.5 font-semibold text-fog sm:mb-2">DETECTED</div>
         <div className="flex flex-col gap-1 sm:gap-1.5">
-          {RISK_LEVELS.map((level) => (
-            <div key={level} className="flex items-center gap-2 text-mist">
+          {AGE_BUCKETS.map((b) => (
+            <div key={b.label} className="flex items-center gap-2 text-mist">
               <span
                 className="h-[9px] w-[9px] rounded-full border border-white/80"
-                style={{ backgroundColor: riskHex(level) }}
+                style={{ backgroundColor: b.hex }}
                 aria-hidden="true"
               />
-              {level}
+              {b.label}
             </div>
           ))}
         </div>

@@ -21,11 +21,61 @@ export function normalizeConfidence(raw: string | undefined): PredictRequest['co
   return 'n'
 }
 
-/** "2026-09-27 0550" -> "2026-09-27 05:50 UTC" */
-export function formatAcq(date: string | undefined, time: string | undefined): string | null {
+/** FIRMS acq_date (YYYY-MM-DD) + acq_time (UTC HHMM, unpadded) as a Date. */
+export function acquiredAt(date: string | undefined, time: string | undefined): Date | null {
   if (!date) return null
   const t = String(time ?? '').padStart(4, '0')
-  return `${date} ${t.slice(0, 2)}:${t.slice(2, 4)} UTC`
+  const d = new Date(`${date}T${t.slice(0, 2)}:${t.slice(2, 4)}:00Z`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Same, from the API's `latest` field ("YYYY-MM-DD HHMM"). */
+export function latestAt(latest: string | null | undefined): Date | null {
+  return latest ? acquiredAt(latest.slice(0, 10), latest.slice(11)) : null
+}
+
+const IST = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  day: 'numeric',
+  month: 'short',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+})
+const IST_TIME = new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+})
+
+/** "27 Sep, 1:01 pm IST" (or time only). */
+export function formatIst(d: Date | null, timeOnly = false): string | null {
+  if (!d) return null
+  return `${(timeOnly ? IST_TIME : IST).format(d)} IST`
+}
+
+/** "just now", "25m ago", "3h ago", "1d ago". */
+export function formatAge(d: Date | null, now = Date.now()): string | null {
+  if (!d) return null
+  const mins = Math.max(0, Math.round((now - d.getTime()) / 60000))
+  if (mins < 5) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  return hours < 48 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`
+}
+
+/** Age buckets for marker colour, like the FIRMS Fire Map (newest = hottest). */
+export const AGE_BUCKETS = [
+  { maxHours: 6, label: 'Under 6 h', hex: '#ff6b3d' },
+  { maxHours: 12, label: '6-12 h', hex: '#e8913a' },
+  { maxHours: 24, label: '12-24 h', hex: '#c9a45a' },
+  { maxHours: Infinity, label: 'Older', hex: '#8b8f9c' },
+] as const
+
+export function ageHex(d: Date | null, now = Date.now()): string {
+  const hours = d ? (now - d.getTime()) / 3600000 : Infinity
+  return AGE_BUCKETS.find((b) => hours < b.maxHours)?.hex ?? AGE_BUCKETS[AGE_BUCKETS.length - 1].hex
 }
 
 const SOURCE_LABELS: Record<string, string> = {

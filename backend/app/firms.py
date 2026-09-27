@@ -10,13 +10,18 @@ NASA_FIRMS_MAP_KEY environment variable. Must never be committed to git.
 
 import csv
 import io
+import json
 import logging
 import math
 import os
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
+from functools import lru_cache
+from pathlib import Path
 
 import requests
+import shapely
+from shapely.geometry import shape
 
 from .retry import retry_with_backoff
 
@@ -148,3 +153,30 @@ def fetch_recent_fires(bbox: str = INDIA_BBOX, hours: int = 24) -> list[dict]:
         for row in fetch_latest_fires(bbox=bbox, days=days)
         if (t := _acquired_at(row)) is not None and t >= cutoff
     ]
+
+
+# India's boundary per the Government of India map (DataMeet
+# india-composite, MIT), simplified ~1 km and buffered ~5 km so coastal and
+# near-shore detections are kept.
+# ponytail: land + 5 km, so far-offshore Indian platforms (e.g. Bombay High,
+# ~160 km out) are dropped; use an EEZ polygon if those matter. The
+# fetch box is a rectangle, so without this the map also shows fires in
+# Pakistan, Nepal, Bangladesh and Myanmar.
+INDIA_FILTER_PATH = Path(__file__).parent / "data" / "india_filter.geojson"
+
+
+@lru_cache(maxsize=1)
+def _india_shape():
+    features = json.loads(INDIA_FILTER_PATH.read_text(encoding="utf-8"))["features"]
+    geom = shapely.union_all([shape(f["geometry"]) for f in features])
+    shapely.prepare(geom)
+    return geom
+
+
+def within_india(rows: list[dict]) -> list[dict]:
+    if not rows:
+        return rows
+    lons = [float(r["longitude"]) for r in rows]
+    lats = [float(r["latitude"]) for r in rows]
+    inside = shapely.contains_xy(_india_shape(), lons, lats)
+    return [r for r, keep in zip(rows, inside) if keep]

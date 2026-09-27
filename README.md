@@ -93,7 +93,8 @@ React Dashboard (Leaflet map, risk panel)
 Only features verified in the current codebase are listed.
 
 ### 🔥 Fire & Hotspot Monitoring
-- Live map of NASA FIRMS hotspots restricted to an India bounding box (`68.0,6.0,97.5,37.5`)
+- Live map of NASA FIRMS hotspots from the last 24 hours, limited to India's boundary (Government of India map via DataMeet, plus ~5 km so coastal detections are kept), with the boundary drawn on the map
+- Detection times shown in IST with age ("3h ago"); dots coloured by age like the FIRMS Fire Map (under 6 h, 6-12 h, 12-24 h, older)
 - Per-hotspot risk filter on the dashboard (`riskFilter` state in `DashboardPage.tsx`)
 - Stale-data banner when no new detections are published in the current window
 
@@ -248,9 +249,9 @@ FastAPI application at `backend/app/main.py`.
 ### `GET /api/fires`
 
 - **Purpose**: returns live NASA FIRMS hotspots for the requested area.
-- **Query parameters**: `bbox` (default: India bounding box `68.0,6.0,97.5,37.5`), `hours` (rolling window, default `24`, max `216`).
+- **Query parameters**: `bbox` (default: India bounding box `68.0,6.0,97.5,37.5`), `hours` (rolling window, default `24`, max `216`), `india_only` (default `true`: drop detections outside India's boundary, `backend/app/data/india_filter.geojson`).
 - **Stale-data behavior**: if the last 24 hours contain no detections, the backend widens to 48 hours and sets `"stale": true` so the frontend can show a banner.
-- **Response fields**: `success`, `count`, `source`, `satellite`, `window_hours`, `latest` (newest detection, `YYYY-MM-DD HHMM` UTC), `stale`, `fires` (raw FIRMS CSV row dicts plus a `source` field, newest first).
+- **Response fields**: `success`, `count`, `source`, `satellite`, `window_hours`, `india_only`, `latest` (newest detection, `YYYY-MM-DD HHMM` UTC), `stale`, `fires` (raw FIRMS CSV row dicts plus a `source` field, newest first).
 
 ## 📋 API Reference
 
@@ -541,6 +542,7 @@ The frontend code only ever calls **relative** paths — e.g. `fetch('/api/fires
 
 ### Render cold start
 - Render's free tier can spin down an idle service and take tens of seconds to wake on the next request — this is a hosting-platform characteristic, not an application bug.
+- `.github/workflows/keep-alive.yml` pings `/api/health` every 10 minutes to keep it warm. GitHub may delay scheduled runs, and disables schedules after 60 days without repo activity (re-enable from the Actions tab).
 
 ## 🔒 Security
 
@@ -575,7 +577,7 @@ Verified behavior from the current code:
 - Fire-source classification is based on land cover at the hotspot's location, a **correlate**, not a confirmed cause.
 - The risk and fire-source models' weakest classes (Medium risk, Offshore/Unknown source) have documented lower F1 scores — see [Machine Learning](#-machine-learning).
 - "Fire detected" is a preliminary rule-based threshold check, not a dedicated trained binary classifier.
-- Geographic scope is currently limited to the configured India bounding box.
+- Geographic scope is India. The boundary filter keeps land plus ~5 km, so far-offshore Indian platforms (e.g. Bombay High) are excluded.
 - Automated checks are limited to `python -m backend.test_api` (request validation and feature smoke checks).
 - The models were trained on MODIS (`MODIS_SP`) archive hotspots, while most live rows are VIIRS. Dashboard prefill maps VIIRS `bright_ti4`/`bright_ti5` onto the model's `brightness`/`bright_t31` inputs, but these bands differ from MODIS, so predictions on live VIIRS hotspots are outside the training distribution until the models are retrained on VIIRS data.
 - Evaluation uses a random stratified split; spatially and temporally adjacent hotspots from the same fire can land in both train and test sets, so reported accuracy is likely optimistic.
@@ -651,4 +653,5 @@ License: Not currently specified.
 - [MODIS MCD64A1](https://planetarycomputer.microsoft.com/dataset/modis-64A1-061) via Microsoft Planetary Computer — burned-area ground truth
 - [ESA WorldCover](https://esa-worldcover.org/) — land-cover classification
 - [OpenStreetMap](https://www.openstreetmap.org/) / Overpass API — infrastructure proximity data
+- [DataMeet](https://github.com/datameet/maps) — India boundary (`india-composite`, MIT)
 - React, Vite, Tailwind CSS, FastAPI, XGBoost, scikit-learn, ReportLab

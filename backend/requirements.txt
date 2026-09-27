@@ -11,3 +11,4 @@ scikit-learn==1.9.0
 joblib==1.6.0
 xgboost==3.2.0
 reportlab==5.0.1
+shapely==2.1.2

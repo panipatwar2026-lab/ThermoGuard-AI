@@ -38,16 +38,16 @@ function isSettled(s: BootStatus) {
 
 // Minimum time the boot screen takes, even on a fast connection. On a slow
 // one it simply takes longer: the bar is capped by what has really loaded.
-// ~12.5s of pacing + page load, final settle and reveal lands at about 15s total.
-const MIN_DURATION_MS = 12500
+// ~5.5s of pacing + page load, final settle and reveal lands at about 7s total.
+const MIN_DURATION_MS = 5500
 // While a step is still running, the cap creeps into that step's share so
 // the bar keeps moving, but never past 90% of it until the step finishes.
 const CREEP_TAU_MS = 6000
 // Per-frame smoothing toward the target; larger = lazier.
 const SMOOTH_TAU_MS = 280
 // Top speed in %/s, so a late backend reply glides to 100 instead of jumping.
-// Normal pacing peaks around 10%/s, so this only bites when catching up.
-const MAX_SPEED_PCT_PER_S = 14
+// Normal pacing peaks around 25%/s, so this only bites when catching up.
+const MAX_SPEED_PCT_PER_S = 25
 
 /** S-curve blended with a linear ramp: moves from the first second, steady middle, soft landing. */
 function pace(t: number) {
@@ -117,7 +117,7 @@ export default function BootLoader({
     const step = Math.min((target - current) * k, (MAX_SPEED_PCT_PER_S * delta) / 1000)
     const next = Math.max(current, current + step)
     if (next !== current) progress.set(next)
-    if (!doneFired.current && l.capBase === 100 && next >= 99.95) {
+    if (!doneFired.current && l.capBase === 100 && next >= 99) {
       doneFired.current = true
       progress.set(100)
       l.onDone()

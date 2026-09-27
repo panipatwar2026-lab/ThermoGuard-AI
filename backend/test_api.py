@@ -39,6 +39,12 @@ def demo():
         assert len(firms.fetch_recent_fires(hours=24)) == 2
         assert fetch.call_args.kwargs["days"] == 2
 
+    # India filter: Delhi and a point just off Mumbai's coast kept; Lahore, Kathmandu, Dhaka, Yangon dropped.
+    pts = {"delhi": (28.61, 77.21), "off_mumbai": (18.90, 72.79), "lahore": (31.55, 74.34),
+           "kathmandu": (27.72, 85.32), "dhaka": (23.81, 90.41), "yangon": (16.84, 96.17)}
+    kept = firms.within_india([{"name": n, "latitude": la, "longitude": lo} for n, (la, lo) in pts.items()])
+    assert {r["name"] for r in kept} == {"delhi", "off_mumbai"}, kept
+
     # Hour feature comes from acq_time (as in training), not observation_time.
     df, _ = ml.build_input_data(
         20, 73, 330, 1, 1, 1745, "h", "2.0NRT", "D", 0, 310, 5, date(2026, 4, 10), time(3, 0)

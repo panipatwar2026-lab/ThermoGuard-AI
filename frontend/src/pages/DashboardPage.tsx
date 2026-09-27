@@ -11,7 +11,7 @@ import SectionTitle from '../components/ui/SectionTitle'
 import BootLoader, { type BootStep } from '../components/dashboard/BootLoader'
 import { fetchFires, fetchHealth, fetchInfrastructure } from '../lib/api'
 import { calculateAiRisk } from '../lib/aiRisk'
-import { buildPrefill, fireId, fireLatLng, formatAcq } from '../lib/fires'
+import { buildPrefill, fireId, fireLatLng, formatAge, formatIst, latestAt } from '../lib/fires'
 import type { AiRisk, FireRecord, InfrastructureResponse } from '../types'
 
 const REFRESH_INTERVAL_MS = 60 * 1000
@@ -20,7 +20,7 @@ const REFRESH_INTERVAL_MS = 60 * 1000
 const HEALTH_TIMEOUT_MS = 90 * 1000
 const SLOW_BACKEND_HINT_MS = 6 * 1000
 // Map tiles and the OSM lookup are nice-to-have: don't hold the loader for them.
-const OPTIONAL_STEP_TIMEOUT_MS = 10 * 1000
+const OPTIONAL_STEP_TIMEOUT_MS = 5 * 1000
 
 const INITIAL_BOOT: BootStep[] = [
   { key: 'backend', label: 'Connecting to analysis server', weight: 30, status: 'active' },
@@ -36,7 +36,8 @@ let bootedThisPageLoad = false
 function describeFires(count: number, sources: number, latest: string | null | undefined, stale: boolean): string {
   if (count === 0) return 'No active detections in the current window'
   // Time only; the date is today unless stale, which is called out separately.
-  const when = latest ? `, newest ${formatAcq(latest.slice(0, 10), latest.slice(11))?.slice(11)}` : ''
+  const at = latestAt(latest)
+  const when = at ? `, newest ${formatIst(at, true)} (${formatAge(at)})` : ''
   const window = stale ? 'in the last 48h (none in the last 24h)' : 'in the last 24h'
   return `${count.toLocaleString()} detections ${window} from ${sources} satellite${sources === 1 ? '' : 's'}${when}`
 }

@@ -202,7 +202,7 @@ def report(req: PredictRequest):
 # every 60s; without this each tab spends FIRMS MAP_KEY quota (5000 calls /
 # 10 min). Move to a shared cache if running multiple workers.
 FIRES_CACHE_TTL_S = 60
-_fires_cache: dict[tuple[str, int], tuple[float, dict]] = {}
+_fires_cache: dict[tuple[str, int, bool], tuple[float, dict]] = {}
 
 
 def _parse_bbox(bbox: str) -> str:
@@ -216,9 +216,14 @@ def _parse_bbox(bbox: str) -> str:
 
 
 @app.get("/api/fires")
-def fires(bbox: str = firms.INDIA_BBOX, hours: int = Query(24, ge=1, le=216)):
+def fires(
+    bbox: str = firms.INDIA_BBOX,
+    hours: int = Query(24, ge=1, le=216),
+    india_only: bool = True,
+):
     bbox = _parse_bbox(bbox)
-    cached = _fires_cache.get((bbox, hours))
+    key = (bbox, hours, india_only)
+    cached = _fires_cache.get(key)
     if cached and time.monotonic() - cached[0] < FIRES_CACHE_TTL_S:
         return cached[1]
 
@@ -231,6 +236,8 @@ def fires(bbox: str = firms.INDIA_BBOX, hours: int = Query(24, ge=1, le=216)):
         if not rows and hours == 24:
             rows = firms.fetch_recent_fires(bbox=bbox, hours=48)
             stale = True
+        if india_only:
+            rows = firms.within_india(rows)
     except firms.MissingMapKeyError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except requests.RequestException as e:
@@ -242,12 +249,13 @@ def fires(bbox: str = firms.INDIA_BBOX, hours: int = Query(24, ge=1, le=216)):
         "source": "NASA FIRMS",
         "satellite": ", ".join(firms.NRT_SOURCES),
         "window_hours": 48 if stale else hours,
+        "india_only": india_only,
         # Newest detection, e.g. "2026-09-27 0550" (UTC); rows are sorted newest first.
         "latest": f"{rows[0]['acq_date']} {int(rows[0]['acq_time']):04d}" if rows else None,
         "stale": stale,
         "fires": rows,
     }
-    _fires_cache[(bbox, hours)] = (time.monotonic(), body)
+    _fires_cache[key] = (time.monotonic(), body)
     return body
 
 
