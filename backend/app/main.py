@@ -1,10 +1,10 @@
 import logging
-import os
+import time
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -198,47 +198,62 @@ def report(req: PredictRequest):
     )
 
 
-@app.get("/api/fires")
-def fires(bbox: str = firms.INDIA_BBOX, days: int = 1):
+# ponytail: in-process TTL cache, per worker. Every open dashboard polls
+# every 60s; without this each tab spends FIRMS MAP_KEY quota (5000 calls /
+# 10 min). Move to a shared cache if running multiple workers.
+FIRES_CACHE_TTL_S = 60
+_fires_cache: dict[tuple[str, int], tuple[float, dict]] = {}
+
+
+def _parse_bbox(bbox: str) -> str:
     try:
-        rows = firms.fetch_live_fires(bbox=bbox, days=days)
+        west, south, east, north = (float(x) for x in bbox.split(","))
+    except ValueError:
+        raise HTTPException(status_code=422, detail="bbox must be 'west,south,east,north'")
+    if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+        raise HTTPException(status_code=422, detail="bbox out of range")
+    return f"{west},{south},{east},{north}"
+
+
+@app.get("/api/fires")
+def fires(bbox: str = firms.INDIA_BBOX, days: int = Query(1, ge=1, le=10)):
+    bbox = _parse_bbox(bbox)
+    cached = _fires_cache.get((bbox, days))
+    if cached and time.monotonic() - cached[0] < FIRES_CACHE_TTL_S:
+        return cached[1]
+
+    try:
+        rows = firms.fetch_latest_fires(bbox=bbox, days=days)
         stale = False
         # No detections in the requested window (e.g. today's NRT pass not
-        # processed yet) â€” fall back to yesterday's data rather than showing
+        # processed yet) — fall back to yesterday's data rather than showing
         # an empty map.
         if not rows and days == 1:
-            rows = firms.fetch_live_fires(bbox=bbox, days=2)
+            rows = firms.fetch_latest_fires(bbox=bbox, days=2)
             stale = True
     except firms.MissingMapKeyError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except requests.RequestException as e:
         raise HTTPException(status_code=502, detail=f"NASA FIRMS request failed: {e}")
 
-    return {
+    body = {
         "success": True,
         "count": len(rows),
         "source": "NASA FIRMS",
-        "satellite": firms.DEFAULT_SOURCE,
+        "satellite": ", ".join(firms.NRT_SOURCES),
+        # Newest detection, e.g. "2026-09-27 0550" (UTC) — rows are sorted newest first.
+        "latest": f"{rows[0]['acq_date']} {int(rows[0]['acq_time']):04d}" if rows else None,
         "stale": stale,
         "fires": rows,
     }
-
-
-@app.get("/api/debug/firms")
-def debug_firms():
-    """TEMPORARY diagnostic endpoint for the Render/NASA FIRMS DNS issue.
-    Remove once the connectivity problem is resolved. Never returns the raw
-    NASA_FIRMS_MAP_KEY."""
-    key = os.environ.get("NASA_FIRMS_MAP_KEY")
-    if not key:
-        return {"key_configured": False, "dns_reachable": False}
-
-    return {"key_configured": True, **firms.check_map_key_status(key)}
+    _fires_cache[(bbox, days)] = (time.monotonic(), body)
+    return body
 
 
 @app.get("/api/infrastructure")
-def infrastructure(lat: float, lon: float):
+def infrastructure(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180)):
     try:
-        return osm.fetch_infrastructure(lat, lon)
+        # Rounded to ~100 m so repeat lookups of one hotspot hit osm's cache.
+        return osm.fetch_infrastructure(round(lat, 3), round(lon, 3))
     except requests.RequestException as e:
         raise HTTPException(status_code=502, detail=f"OpenStreetMap request failed: {e}")

@@ -1,11 +1,13 @@
-fastapi
-uvicorn[standard]
-requests
-python-dotenv
-pandas
-numpy
-scikit-learn
-joblib
-xgboost
-lightgbm
-reportlab
+# Pinned: models/*.pkl are pickled XGBoost/scikit-learn objects and can
+# break on a major version bump. These are the versions verified to load
+# and serve the v3 models.
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+requests==2.34.2
+python-dotenv==1.2.3
+pandas==3.0.5
+numpy==2.4.6
+scikit-learn==1.9.0
+joblib==1.6.0
+xgboost==3.2.0
+reportlab==5.0.1

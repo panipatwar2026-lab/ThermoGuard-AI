@@ -97,7 +97,10 @@ def build_input_data(
     observation_date,
     observation_time,
 ):
-    obs_datetime = datetime.combine(observation_date, observation_time)
+    # Hour/minute come from acq_time (UTC HHMM), same as build_dataset.py
+    # does in training; observation_time is display-only.
+    hour, minute = divmod(int(acq_time), 100)
+    obs_datetime = datetime.combine(observation_date, time(hour, minute))
 
     year = obs_datetime.year
     month = obs_datetime.month
@@ -106,9 +109,6 @@ def build_input_data(
     day_of_year = obs_datetime.timetuple().tm_yday
     day_of_week = obs_datetime.weekday()
     week_of_year = int(obs_datetime.strftime("%V"))
-
-    hour = obs_datetime.hour
-    minute = obs_datetime.minute
 
     is_weekend = 1 if day_of_week >= 5 else 0
 

@@ -33,7 +33,7 @@ export default function AlertBanner({ ai, hasFires = true }: { ai: AiRisk | null
     return (
       <div className="rounded-[10px] border border-graphite bg-onyx p-6 text-[15px] text-mist">
         {hasFires
-          ? 'Select a hotspot on the map to see its AI alert assessment.'
+          ? 'Select a hotspot on the map to see its alert assessment.'
           : 'No active hotspots detected in this region right now. Check back later or widen the search area.'}
       </div>
     )
@@ -48,7 +48,7 @@ export default function AlertBanner({ ai, hasFires = true }: { ai: AiRisk | null
       <div className="flex items-start gap-3">
         <Icon size={20} strokeWidth={1.5} className={tone.text} aria-hidden="true" />
         <div>
-          <span className={`text-[13px] font-semibold tracking-[-0.02em] ${tone.text}`}>AI ALERT SYSTEM</span>
+          <span className={`text-[13px] font-semibold tracking-[-0.02em] ${tone.text}`}>HEURISTIC ALERT</span>
           <h3 className="font-display mt-1 text-[20px] text-paper-white">{copy.title}</h3>
           <p className="mt-1 text-[14px] text-mist">{copy.message(ai.score)}</p>
         </div>

@@ -6,8 +6,6 @@ import HotspotMap from '../components/dashboard/HotspotMap'
 import MapControls from '../components/dashboard/MapControls'
 import AlertBanner from '../components/dashboard/AlertBanner'
 import RiskPanel from '../components/dashboard/RiskPanel'
-import ForecastPanel from '../components/dashboard/ForecastPanel'
-import RiskTrendChart from '../components/dashboard/RiskTrendChart'
 import SectionTitle from '../components/ui/SectionTitle'
 import { fetchFires, fetchInfrastructure } from '../lib/api'
 import { calculateAiRisk } from '../lib/aiRisk'
@@ -22,6 +20,7 @@ export default function DashboardPage() {
   const [fires, setFires] = useState<FireRecord[]>([])
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [staleFires, setStaleFires] = useState(false)
+  const [latest, setLatest] = useState<string | null>(null)
   const [riskFilter, setRiskFilter] = useState('ALL')
 
   const [selectedFire, setSelectedFire] = useState<FireRecord | null>(null)
@@ -39,6 +38,7 @@ export default function DashboardPage() {
       const res = await fetchFires(signal)
       setFires(res.fires)
       setStaleFires(Boolean(res.stale))
+      setLatest(res.latest ?? null)
       setFetchError(null)
     } catch (e: any) {
       if (e?.name === 'AbortError') return
@@ -49,7 +49,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const controller = new AbortController()
     loadFires(controller.signal)
-    const interval = setInterval(() => loadFires(), REFRESH_INTERVAL_MS)
+    const interval = setInterval(() => loadFires(controller.signal), REFRESH_INTERVAL_MS)
     return () => {
       controller.abort()
       clearInterval(interval)
@@ -152,6 +152,7 @@ export default function DashboardPage() {
               <HotspotMap
                 fires={fires}
                 riskFilter={riskFilter}
+                latest={latest}
                 selectedId={selectedId}
                 onSelect={selectFire}
                 pickedLocation={pickedLocation}
@@ -173,14 +174,6 @@ export default function DashboardPage() {
                 hasFires={fires.length > 0}
               />
             </div>
-          </div>
-
-          <div className="mt-10">
-            <ForecastPanel ai={selectedAi} />
-          </div>
-
-          <div className="mt-10">
-            <RiskTrendChart ai={selectedAi} />
           </div>
         </div>
       </main>

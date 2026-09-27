@@ -6,7 +6,6 @@ import SpotlightCard from '../fx/SpotlightCard'
 import CountUp from '../fx/CountUp'
 import ExplainabilityBars from './ExplainabilityBars'
 import InfrastructureBox from './InfrastructureBox'
-import HistoricalPersistenceBox from './HistoricalPersistenceBox'
 
 const DESCRIPTIONS: Record<AiRisk['risk'], string> = {
   CRITICAL: 'High probability of fire persistence and rapid spread',
@@ -62,7 +61,10 @@ export default function RiskPanel({
         </div>
       </div>
 
-      <p className="mb-6 text-[14px] text-mist">{DESCRIPTIONS[ai.risk]}</p>
+      <p className="mb-2 text-[14px] text-mist">{DESCRIPTIONS[ai.risk]}</p>
+      <p className="mb-6 text-[12px] text-fog">
+        Quick heuristic from brightness, FRP and confidence — not the trained model. Use Run Prediction for the ML result.
+      </p>
 
       <div className="mb-6 border-t border-graphite pt-5">
         <ExplainabilityBars ai={ai} />
@@ -86,10 +88,6 @@ export default function RiskPanel({
           loading={infrastructureLoading}
           error={infrastructureError}
         />
-      </div>
-
-      <div className="border-t border-graphite pt-5">
-        <HistoricalPersistenceBox ai={ai} />
       </div>
     </SpotlightCard>
   )

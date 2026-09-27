@@ -12,6 +12,7 @@ import csv
 import io
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -20,8 +21,13 @@ from .retry import retry_with_backoff
 logger = logging.getLogger(__name__)
 
 FIRMS_BASE = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
-MAPKEY_STATUS_URL = "https://firms.modaps.eosdis.nasa.gov/mapserver/mapkey_status/"
 DEFAULT_SOURCE = "VIIRS_SNPP_NRT"
+
+# All near-real-time satellites. Each passes over India at different times
+# and NASA publishes each on its own lag, so any single one can have no
+# rows for "today" while the others already do. Merging gives the latest
+# available detections.
+NRT_SOURCES = ("VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT")
 
 # India bounding box (west, south, east, north) — dashboard's default scope,
 # matches the map's INDIA_BOUNDS in HotspotMap.tsx.
@@ -90,27 +96,30 @@ def fetch_live_fires(
     return list(reader)
 
 
-def check_map_key_status(map_key: str) -> dict:
-    """Diagnostic-only: hits FIRMS's lightweight key-status endpoint (not
-    fetch_live_fires's real area/csv endpoint) to isolate whether the
-    server's egress can reach the FIRMS host at all. Never returns the raw
-    key or a full URL — safe to return straight from an API response."""
-    try:
-        resp = requests.get(MAPKEY_STATUS_URL, params={"MAP_KEY": map_key}, timeout=15)
-    except requests.RequestException as e:
-        return {
-            "dns_reachable": False,
-            "error_type": type(e).__name__,
-            "error": _redact_key(str(e), map_key),
-        }
 
-    try:
-        body = resp.json()
-    except ValueError:
-        body = resp.text[:500]
+def fetch_latest_fires(bbox: str = INDIA_BBOX, days: int = 1) -> list[dict]:
+    """Fetch every NRT_SOURCES feed in parallel and merge the rows, each
+    tagged with its `source`. One failing satellite is skipped; raises only
+    if all of them fail."""
+    _map_key()  # fail fast with MissingMapKeyError, not one per thread
 
-    return {
-        "dns_reachable": True,
-        "firms_status": resp.status_code,
-        "firms_response": body,
-    }
+    def _one(source: str):
+        try:
+            return source, fetch_live_fires(bbox=bbox, days=days, source=source)
+        except requests.RequestException as e:
+            return source, e
+
+    with ThreadPoolExecutor(max_workers=len(NRT_SOURCES)) as pool:
+        results = list(pool.map(_one, NRT_SOURCES))
+
+    errors = [r for _, r in results if isinstance(r, Exception)]
+    if len(errors) == len(results):
+        raise errors[0]
+
+    rows = []
+    for source, result in results:
+        if not isinstance(result, Exception):
+            rows.extend({**row, "source": source} for row in result)
+    # Newest first; acq_time is HHMM without zero padding.
+    rows.sort(key=lambda r: (r.get("acq_date", ""), int(r.get("acq_time") or 0)), reverse=True)
+    return rows

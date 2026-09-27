@@ -7,6 +7,7 @@ used by the dashboard's risk panel to contextualize a hotspot.
 """
 
 import math
+from functools import lru_cache
 
 import requests
 
@@ -82,6 +83,7 @@ def _query_overpass(lat: float, lon: float) -> list[dict]:
     raise last_error  # type: ignore[misc]
 
 
+@lru_cache(maxsize=512)
 def fetch_infrastructure(lat: float, lon: float) -> dict:
     elements = _query_overpass(lat, lon)
 

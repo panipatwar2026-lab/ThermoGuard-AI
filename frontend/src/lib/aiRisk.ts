@@ -1,4 +1,5 @@
 import type { AiRisk, FireRecord } from '../types'
+import { normalizeConfidence } from './fires'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -13,15 +14,12 @@ function clamp(value: number, min: number, max: number): number {
 export function calculateAiRisk(fire: FireRecord): AiRisk {
   const brightness = Number(fire.bright_ti4 ?? fire.brightness ?? fire.bright_ti11 ?? 0)
   const frp = Number(fire.frp ?? fire.FRP ?? 0)
-  const confidence = String(fire.confidence ?? fire.confidence_level ?? 'nominal').toLowerCase()
+  const confidence = normalizeConfidence(fire.confidence ?? fire.confidence_level)
 
   const brightnessScore = clamp(((brightness - 250) / 150) * 100, 0, 100)
   const frpScore = clamp((frp / 50) * 100, 0, 100)
 
-  let confidenceScore = 50
-  if (confidence === 'high' || confidence === 'h') confidenceScore = 100
-  else if (confidence === 'nominal' || confidence === 'n' || confidence === 'medium') confidenceScore = 70
-  else if (confidence === 'low' || confidence === 'l') confidenceScore = 35
+  const confidenceScore = { h: 100, n: 70, l: 35 }[confidence]
 
   const score = Math.round(
     clamp(brightnessScore * 0.45 + frpScore * 0.35 + confidenceScore * 0.2, 0, 100),

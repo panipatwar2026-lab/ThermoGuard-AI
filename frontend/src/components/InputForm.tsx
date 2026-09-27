@@ -1,6 +1,6 @@
 import { MapPin } from 'lucide-react'
 import type { PredictRequest } from '../types'
-import { DateField, NumberField, SelectField, TimeField } from './ui/fields'
+import { DateField, NumberField, SelectField } from './ui/fields'
 import Reveal from './fx/Reveal'
 import SectionTitle from './ui/SectionTitle'
 import SpotlightCard from './fx/SpotlightCard'
@@ -33,7 +33,7 @@ export default function InputForm({ form, onChange }: InputFormProps) {
           <SpotlightCard className="h-full p-6">
             <h3 className="mb-5 text-[16px] font-semibold text-silver">Satellite Parameters</h3>
             <div className="space-y-5">
-              <NumberField label="Acquisition Time" value={form.acq_time} min={0} max={2359} onChange={(v) => onChange('acq_time', v)} />
+              <NumberField label="Acquisition Time (UTC HHMM)" value={form.acq_time} min={0} max={2359} onChange={(v) => onChange('acq_time', v)} />
               <SelectField
                 label="Confidence"
                 value={form.confidence}
@@ -64,10 +64,9 @@ export default function InputForm({ form, onChange }: InputFormProps) {
                 value={form.fire_type}
                 onChange={(v) => onChange('fire_type', v)}
                 options={[
-                  { label: '-1', value: -1 },
-                  { label: '0', value: 0 },
-                  { label: '2', value: 2 },
-                  { label: '3', value: 3 },
+                  { label: 'Vegetation fire (0)', value: 0 },
+                  { label: 'Other static land source (2)', value: 2 },
+                  { label: 'Offshore (3)', value: 3 },
                 ]}
               />
             </div>
@@ -80,8 +79,7 @@ export default function InputForm({ form, onChange }: InputFormProps) {
             <div className="space-y-5">
               <NumberField label="Brightness T31" value={form.bright_t31} step={0.01} onChange={(v) => onChange('bright_t31', v)} />
               <NumberField label="FRP" value={form.frp} step={0.01} min={0} onChange={(v) => onChange('frp', v)} />
-              <DateField label="Observation Date" value={form.observation_date} onChange={(v) => onChange('observation_date', v)} />
-              <TimeField label="Observation Time" value={form.observation_time} onChange={(v) => onChange('observation_time', v)} />
+              <DateField label="Observation Date (UTC)" value={form.observation_date} onChange={(v) => onChange('observation_date', v)} />
             </div>
           </SpotlightCard>
         </Reveal>

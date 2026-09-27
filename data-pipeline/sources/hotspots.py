@@ -29,7 +29,7 @@ MAX_DAY_RANGE = 5  # archive (MODIS_SP) sources cap at 5 days per request
 
 # India bounding box (west, south, east, north) — matches the plan's
 # default geographic scope (see data-pipeline/README.md).
-INDIA_BBOX = "68.0,6.0,97.5,37.0"
+INDIA_BBOX = "68.0,6.0,97.5,37.5"
 
 
 class MissingMapKeyError(RuntimeError):
@@ -37,7 +37,7 @@ class MissingMapKeyError(RuntimeError):
 
 
 def _map_key() -> str:
-    key = os.environ.get("FIRMS_MAP_KEY")
+    key = os.environ.get("FIRMS_MAP_KEY") or os.environ.get("NASA_FIRMS_MAP_KEY")
     if not key:
         raise MissingMapKeyError(
             "FIRMS_MAP_KEY environment variable is not set. Register a free "

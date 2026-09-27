@@ -4,7 +4,7 @@ import type { LatLngBoundsExpression } from 'leaflet'
 import { X } from 'lucide-react'
 import type { AiRisk, FireRecord } from '../../types'
 import { calculateAiRisk } from '../../lib/aiRisk'
-import { fireId, fireLatLng } from '../../lib/fires'
+import { fireId, fireLatLng, formatAcq, sourceLabel } from '../../lib/fires'
 import { riskHex } from '../../lib/risk'
 import ShinyButton from '../fx/ShinyButton'
 
@@ -36,6 +36,7 @@ function ClickPicker({ onPick }: { onPick: (lat: number, lng: number) => void })
 export default function HotspotMap({
   fires,
   riskFilter,
+  latest,
   selectedId,
   onSelect,
   pickedLocation,
@@ -45,6 +46,7 @@ export default function HotspotMap({
 }: {
   fires: FireRecord[]
   riskFilter: string
+  latest?: string | null
   selectedId: string | null
   onSelect: (fire: FireRecord, ai: AiRisk, id: string) => void
   pickedLocation: [number, number] | null
@@ -125,6 +127,8 @@ export default function HotspotMap({
                   Brightness: {m.ai.brightness.toFixed(1)}
                   <br />
                   FRP: {m.ai.frp.toFixed(1)}
+                  <br />
+                  {sourceLabel(m.fire.source)} · {formatAcq(m.fire.acq_date, m.fire.acq_time)}
                 </div>
               </Popup>
             </CircleMarker>
@@ -147,8 +151,13 @@ export default function HotspotMap({
           Source <strong className="text-bone">NASA FIRMS</strong>
         </span>
         <span>
-          Satellite <strong className="text-bone">MODIS · VIIRS</strong>
+          Satellite <strong className="text-bone">VIIRS ×3 · MODIS</strong>
         </span>
+        {latest && (
+          <span>
+            Latest <strong className="text-bone">{formatAcq(latest.slice(0, 10), latest.slice(11))}</strong>
+          </span>
+        )}
         <span>
           Hotspots <strong className="text-bone">{markers.length}</strong>
         </span>

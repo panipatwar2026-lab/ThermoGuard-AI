@@ -85,7 +85,7 @@ FastAPI Backend (backend/app/main.py)
         ↓
 REST API (/api/fires, /api/predict, /api/infrastructure, /api/report)
         ↓
-React Dashboard (Leaflet map, risk panel, forecast panel)
+React Dashboard (Leaflet map, risk panel)
 ```
 
 ## ⭐ Key Features
@@ -98,7 +98,7 @@ Only features verified in the current codebase are listed.
 - Stale-data banner when no new detections are published in the current window
 
 ### 🛰️ Satellite Data
-- Live NASA FIRMS `VIIRS_SNPP_NRT` area-CSV feed (`backend/app/firms.py`)
+- Live NASA FIRMS area-CSV feeds from all four near-real-time satellites (`VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT`, `MODIS_NRT`), fetched in parallel and merged newest-first, so the map shows whichever satellite published most recently (`backend/app/firms.py`)
 - Automatic retry with exponential backoff on transient failures (`backend/app/retry.py`)
 - 1-day → 2-day fallback window when no fresh hotspots are published yet
 
@@ -111,14 +111,14 @@ Only features verified in the current codebase are listed.
 
 ### 🗺️ Visualization
 - Interactive Leaflet map (`react-leaflet`) on both the dashboard and the analysis page
-- Risk probability chart, feature-importance chart, forecast panel
+- Risk probability chart, feature-importance chart
 
 ### ⚙️ Backend
 - FastAPI app (`backend/app/main.py`) with CORS middleware
 - OpenStreetMap Overpass proximity lookup for nearby industrial land/roads/settlements (`backend/app/osm.py`), with mirror fallback across 3 Overpass instances
 - `.env` loading via `python-dotenv`
 - Structured logging around FIRMS requests (request start/success/failure, no secrets logged)
-- `/api/debug/firms` diagnostic endpoint for verifying NASA FIRMS connectivity from the deployed environment
+- 60-second server-side cache on `/api/fires` (protects the FIRMS MAP_KEY quota) and a per-location cache on `/api/infrastructure`
 
 ### 🌐 Frontend
 - React 19 + TypeScript + Vite 8 + Tailwind CSS 4
@@ -136,7 +136,7 @@ Only features verified in the current codebase are listed.
 - Interactive OpenAPI docs at `/docs` (FastAPI default)
 - `/api/health` and `/api/meta` introspection endpoints (model readiness, feature list, feature importances)
 
-**Not implemented** (do not assume otherwise): user authentication, a persistent database, push notifications/alerts, forecasting beyond the existing heuristic forecast panel, or automatic fire ignition detection at the moment it starts.
+**Not implemented** (do not assume otherwise): user authentication, a persistent database, push notifications/alerts, fire-spread forecasting, or automatic fire ignition detection at the moment it starts.
 
 ## 🏗️ System Architecture
 
@@ -144,14 +144,14 @@ Only features verified in the current codebase are listed.
 flowchart TD
     User(["User's Browser"]) --> Vercel["Vercel — React Frontend\n(static build)"]
     Vercel -->|"/api/(.*) rewrite"| Render["Render — FastAPI Backend\n(Docker container)"]
-    Render -->|"GET /api/area/csv/{MAP_KEY}/VIIRS_SNPP_NRT/{bbox}/{days}"| FIRMS["NASA FIRMS API"]
+    Render -->|"GET /api/area/csv/{MAP_KEY}/{VIIRS_SNPP|NOAA20|NOAA21|MODIS}_NRT/{bbox}/{days}"| FIRMS["NASA FIRMS API"]
     Render -->|"Overpass query"| OSM["OpenStreetMap Overpass API"]
     Render --> Models["Loaded XGBoost models\n(joblib .pkl artifacts)"]
     FIRMS -->|CSV rows| Render
     OSM -->|JSON elements| Render
     Models -->|risk + fire-source predictions| Render
     Render -->|JSON response| Vercel
-    Vercel --> Dashboard["Dashboard: Leaflet map,\nrisk panel, forecast panel"]
+    Vercel --> Dashboard["Dashboard: Leaflet map,\nrisk panel"]
 ```
 
 Separately, the offline training pipeline that produces the model artifacts the backend loads:
@@ -195,7 +195,7 @@ For the ML prediction flow (`/api/predict`), a user (manually, via the `/analyze
 | Setting | Value |
 |---|---|
 | Base endpoint | `https://firms.modaps.eosdis.nasa.gov/api/area/csv` |
-| Source | `VIIRS_SNPP_NRT` |
+| Sources | `VIIRS_SNPP_NRT`, `VIIRS_NOAA20_NRT`, `VIIRS_NOAA21_NRT`, `MODIS_NRT` (merged; each row tagged with `source`) |
 | Default bounding box | `68.0,6.0,97.5,37.5` (India) |
 | Auth | `NASA_FIRMS_MAP_KEY` env var, appended into the request path |
 | Response format | CSV, parsed via `csv.DictReader` |
@@ -250,17 +250,7 @@ FastAPI application at `backend/app/main.py`.
 - **Purpose**: returns live NASA FIRMS hotspots for the requested area.
 - **Query parameters**: `bbox` (default: India bounding box `68.0,6.0,97.5,37.5`), `days` (default: `1`).
 - **Stale-data behavior**: if the `days=1` request returns zero rows, the backend automatically retries with `days=2` and sets `"stale": true` in the response so the frontend can show a banner.
-- **Response fields**: `success`, `count`, `source`, `satellite`, `stale`, `fires` (list of raw FIRMS CSV row dicts).
-
-### `GET /api/debug/firms`
-
-> ⚠️ **DEVELOPMENT / DIAGNOSTIC ENDPOINT** — added to troubleshoot a Render deployment connectivity issue, not part of the core product feature set.
-
-Checks, without ever returning the raw key:
-- Whether `NASA_FIRMS_MAP_KEY` is present in the environment (`key_configured`).
-- Whether the server can reach `firms.modaps.eosdis.nasa.gov`'s key-status endpoint (`dns_reachable`).
-- The HTTP status NASA FIRMS returned (`firms_status`).
-- The key-status response body (transaction limit/usage) when reachable, or a redacted error type/message when not.
+- **Response fields**: `success`, `count`, `source`, `satellite`, `latest` (newest detection, `YYYY-MM-DD HHMM` UTC), `stale`, `fires` (raw FIRMS CSV row dicts plus a `source` field, newest first).
 
 ## 📋 API Reference
 
@@ -271,7 +261,6 @@ Checks, without ever returning the raw key:
 | POST | `/api/predict` | Run risk + fire-source prediction on a manually supplied hotspot record |
 | POST | `/api/report` | Same as `/api/predict`, returned as a downloadable PDF |
 | GET | `/api/fires` | Live NASA FIRMS hotspot feed |
-| GET | `/api/debug/firms` | ⚠️ Diagnostic — NASA FIRMS connectivity check |
 | GET | `/api/infrastructure` | OSM Overpass proximity lookup (industrial land, roads, settlements) for a lat/lon |
 
 <details>
@@ -282,25 +271,14 @@ Checks, without ever returning the raw key:
   "success": true,
   "count": 12,
   "source": "NASA FIRMS",
-  "satellite": "VIIRS_SNPP_NRT",
+  "satellite": "VIIRS_SNPP_NRT, VIIRS_NOAA20_NRT, VIIRS_NOAA21_NRT, MODIS_NRT",
+  "latest": "2026-09-27 0550",
   "stale": false,
   "fires": [ { "latitude": "...", "longitude": "...", "brightness": "...", "...": "..." } ]
 }
 ```
 </details>
 
-<details>
-<summary>Example: <code>GET /api/debug/firms</code> response shape</summary>
-
-```json
-{
-  "key_configured": true,
-  "dns_reachable": true,
-  "firms_status": 200,
-  "firms_response": { "transaction_limit": 5000, "current_transactions": 2, "transaction_interval": "10 minutes" }
-}
-```
-</details>
 
 Full interactive schema for every field: run the backend and open `/docs`.
 
@@ -376,7 +354,7 @@ THERMOGUARD-ML/
 │   └── src/
 │       ├── pages/                  # DashboardPage.tsx, AnalyzePage.tsx
 │       ├── components/               # form, results, charts, map, etc.
-│       ├── components/dashboard/       # live hotspot map, risk/forecast panels
+│       ├── components/dashboard/       # live hotspot map, risk panel
 │       ├── components/fx/                # animated UI primitives
 │       ├── components/layout/              # Nav, Footer
 │       ├── components/ui/                   # shared field/slider primitives
@@ -495,7 +473,7 @@ docker compose up --build
 
 | Variable | Required | Component | Description |
 |---|---|---|---|
-| `NASA_FIRMS_MAP_KEY` | Yes | Backend | Free NASA FIRMS API key — register at https://firms.modaps.eosdis.nasa.gov/api/map_key/. Required for `/api/fires` and `/api/debug/firms`. |
+| `NASA_FIRMS_MAP_KEY` | Yes | Backend | Free NASA FIRMS API key — register at https://firms.modaps.eosdis.nasa.gov/api/map_key/. Required for `/api/fires`. |
 
 ```bash
 # .env (repo root, never committed)
@@ -551,7 +529,6 @@ The frontend code only ever calls **relative** paths — e.g. `fetch('/api/fires
 - Check outbound network/DNS connectivity from the hosting environment.
 - Check NASA FIRMS service status independently.
 - Check Render logs for the `FIRMS request started/succeeded/failed` log lines (`firms.py`).
-- Hit `/api/debug/firms` directly to isolate the failure point (key missing vs. DNS vs. NASA-side error).
 
 ### Vercel shows a 502 / DNS error on `/api/*`
 - Check `frontend/vercel.json`'s rewrite destination is a real, currently-deployed hostname.
@@ -571,7 +548,8 @@ Verified from the current codebase:
 
 - `NASA_FIRMS_MAP_KEY` is read from an environment variable, never hardcoded (`firms.py: _map_key()`).
 - `.env` is excluded via `.gitignore` and `.dockerignore` — never baked into a Docker image or committed.
-- `/api/debug/firms` never returns the raw key, and redacts it out of any request-exception text before returning or logging it (`_redact_key()`).
+- The key is redacted out of any request-exception text before logging it (`_redact_key()`).
+- `/api/fires` validates `bbox` (four in-range floats) and `days` (1–10); `/api/predict` rejects unknown `confidence`/`daynight`/`version` values with 422.
 - FIRMS request logging never logs the key or the full request URL.
 - CORS middleware is explicitly configured (currently scoped to local dev origins).
 
@@ -598,7 +576,10 @@ Verified behavior from the current code:
 - The risk and fire-source models' weakest classes (Medium risk, Offshore/Unknown source) have documented lower F1 scores — see [Machine Learning](#-machine-learning).
 - "Fire detected" is a preliminary rule-based threshold check, not a dedicated trained binary classifier.
 - Geographic scope is currently limited to the configured India bounding box.
-- This project has no automated test suite currently present in the repository.
+- Automated checks are limited to `python -m backend.test_api` (request validation and feature smoke checks).
+- The models were trained on MODIS (`MODIS_SP`) archive hotspots, while most live rows are VIIRS. Dashboard prefill maps VIIRS `bright_ti4`/`bright_ti5` onto the model's `brightness`/`bright_t31` inputs, but these bands differ from MODIS, so predictions on live VIIRS hotspots are outside the training distribution until the models are retrained on VIIRS data.
+- Evaluation uses a random stratified split; spatially and temporally adjacent hotspots from the same fire can land in both train and test sets, so reported accuracy is likely optimistic.
+- The dashboard's per-hotspot score is a client-side heuristic (`lib/aiRisk.ts`), not the trained model.
 - Free-tier hosting (Render) may introduce startup latency after idle periods.
 - CORS is currently scoped to local development origins only, relying on Vercel's server-side rewrite for production same-origin access.
 
@@ -616,12 +597,12 @@ Verified behavior from the current code:
 
 ### 💡 Future Possibilities
 *(speculative — not implemented, not committed to)*
-- Additional satellite data sources beyond `VIIRS_SNPP_NRT`
+- Additional sources such as geostationary (GOES/Himawari) or Landsat detections
 - Historical hotspot analytics/trends
 - Alerting/notification system
 - Persistent database for hotspot history
 - User authentication/accounts
-- Advanced forecasting beyond the current heuristic forecast panel
+- Fire-spread forecasting using real weather data
 - Mobile application
 
 ## 🎯 Use Cases

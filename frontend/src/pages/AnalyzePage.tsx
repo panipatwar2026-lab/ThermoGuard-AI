@@ -11,15 +11,12 @@ import PerformanceStats from '../components/PerformanceStats'
 import InfoSection from '../components/InfoSection'
 import ShinyButton from '../components/fx/ShinyButton'
 import { fetchMeta, predict } from '../lib/api'
+import { formatObservationTime } from '../lib/fires'
 import type { MetaResponse, PredictRequest, PredictResponse } from '../types'
 
-function todayDate(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function nowTime(): string {
-  return new Date().toTimeString().slice(0, 8)
-}
+// FIRMS acq_date/acq_time are UTC, so defaults are too.
+const now = new Date()
+const NOW_ACQ_TIME = now.getUTCHours() * 100 + now.getUTCMinutes()
 
 const DEFAULT_FORM: PredictRequest = {
   latitude: 20.0,
@@ -27,15 +24,15 @@ const DEFAULT_FORM: PredictRequest = {
   brightness: 330.0,
   scan: 1.0,
   track: 1.0,
-  acq_time: 1200,
+  acq_time: NOW_ACQ_TIME,
   confidence: 'h',
   version: '2.0NRT',
   daynight: 'D',
-  fire_type: -1,
+  fire_type: 0,
   bright_t31: 310.0,
   frp: 5.0,
-  observation_date: todayDate(),
-  observation_time: nowTime(),
+  observation_date: now.toISOString().slice(0, 10),
+  observation_time: formatObservationTime(NOW_ACQ_TIME),
 }
 
 interface AnalyzeLocationState {
@@ -59,7 +56,12 @@ export default function AnalyzePage() {
   }, [])
 
   const handleChange = <K extends keyof PredictRequest>(key: K, value: PredictRequest[K]) => {
-    setForm((f) => ({ ...f, [key]: value }))
+    // observation_time mirrors acq_time; the model derives hour from acq_time.
+    setForm((f) => ({
+      ...f,
+      [key]: value,
+      ...(key === 'acq_time' ? { observation_time: formatObservationTime(value as number) } : {}),
+    }))
   }
 
   const handleAnalyze = async () => {

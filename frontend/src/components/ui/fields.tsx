@@ -104,19 +104,3 @@ export function DateField({ label, value, onChange }: { label: string; value: st
     </FieldShell>
   )
 }
-
-export function TimeField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <FieldShell label={label}>
-      <input
-        type="time"
-        step={1}
-        name={toName(label)}
-        autoComplete="off"
-        className={inputClass}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </FieldShell>
-  )
-}

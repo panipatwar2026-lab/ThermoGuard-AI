@@ -8,7 +8,7 @@ export interface PredictRequest {
   confidence: 'h' | 'l' | 'n'
   version: '2.0NRT'
   daynight: 'D' | 'N'
-  fire_type: -1 | 0 | 2 | 3
+  fire_type: 0 | 2 | 3
   bright_t31: number
   frp: number
   observation_date: string
@@ -86,6 +86,10 @@ export interface FireRecord {
   bright_ti4?: string
   brightness?: string
   bright_ti11?: string
+  bright_ti5?: string
+  bright_t31?: string
+  scan?: string
+  track?: string
   frp?: string
   FRP?: string
   confidence?: string
@@ -94,6 +98,8 @@ export interface FireRecord {
   acq_time?: string
   daynight?: string
   satellite?: string
+  /** FIRMS feed the row came from, e.g. VIIRS_NOAA21_NRT or MODIS_NRT. */
+  source?: string
   id?: string
   hotspot_id?: string
   [key: string]: string | undefined
@@ -105,6 +111,8 @@ export interface FiresResponse {
   source: string
   satellite: string
   stale?: boolean
+  /** Newest detection as "YYYY-MM-DD HHMM" (UTC). */
+  latest?: string | null
   fires: FireRecord[]
 }
 

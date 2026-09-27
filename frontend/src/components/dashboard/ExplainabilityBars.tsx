@@ -33,7 +33,7 @@ export default function ExplainabilityBars({ ai }: { ai: AiRisk }) {
 
   return (
     <div>
-      <div className="mb-3 text-[13px] font-semibold tracking-[-0.02em] text-copper">EXPLAINABLE AI</div>
+      <div className="mb-3 text-[13px] font-semibold tracking-[-0.02em] text-copper">SCORE BREAKDOWN</div>
       {metricRow('Brightness', ai.brightnessScore, 'brightness', 0)}
       {metricRow('Persistence', persistence, 'persistence', 0.1)}
       {metricRow('Infrastructure Impact', infrastructureImpact, 'infrastructure', 0.2)}
