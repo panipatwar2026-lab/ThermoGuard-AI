@@ -64,6 +64,20 @@ examples (`counts >= 5` guard, needed for `StratifiedKFold`) — after a pull,
 check `dataset["fire_source"].value_counts()` (printed at the end of
 `build_dataset.py`) before assuming all 5 classes will actually train.
 
+## Current models (v4)
+
+```bash
+export FIRMS_MAP_KEY=...   # or NASA_FIRMS_MAP_KEY
+python build_dataset.py --start 2024-01-01 --end 2025-06-30 --source VIIRS_SNPP_SP --out output/data_viirs_2024_2025.csv
+python train.py --data output/data_viirs_2024_2025.csv --out-dir output/models_viirs_v4
+```
+
+- **Sensor**: VIIRS S-NPP (`--source`, default `VIIRS_SNPP_SP`), matching the mostly-VIIRS live feed. `bright_ti4`/`bright_ti5` feed the `brightness`/`bright_t31` features.
+- **Unpublished months are dropped, not labelled Low.** MCD64A1 publishes months late (on Planetary Computer it ended at Jul 2025 when this ran). `label_burned_batch` marks rows `checked=False` when their month or the next has no granule, and `build_dataset.py` drops them. v3 missed this and labelled every hotspot from Jul 2025 on as Low.
+- **No `year` feature**: live inputs are always later than any training row, and trees can't extrapolate.
+- **Time holdout** (`train.py`, `time_holdout_report`): train on the earliest 80% by date, test on the rest. This is the headline number; random splits leak neighbouring detections of the same fire.
+- ~1.7M rows; the whole run took about 1.5 hours on a laptop, mostly the FIRMS download and burned-area rasters.
+
 ## Known limitations to refine in Phase 2
 
 - **Burn size proxy**: `neighborhood_burned_pixels` (a small window around each hotspot) stands in for true fire-perimeter size, which would need connected-component analysis across burned pixels — a reasonable first pass, not physically precise. Risk thresholds in `label_risk()` are a first-pass modeling choice.

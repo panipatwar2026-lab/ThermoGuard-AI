@@ -25,6 +25,7 @@ total for 3 years x ~15 tiles covering India x 2 months per row's window),
 then does all point lookups against the in-memory array with numpy.
 """
 
+from collections import OrderedDict
 from datetime import date
 
 import numpy as np
@@ -38,7 +39,10 @@ STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION = "modis-64A1-061"
 
 _catalog = None
-_raster_cache: dict[str, dict] = {}  # item.id -> {"data": ndarray, "crs":..., "transform":...}
+# item.id -> {"data": ndarray, "crs":..., "transform":...}. LRU-bounded: each
+# tile is ~11 MB in memory and a multi-year pull touches hundreds of them.
+_raster_cache: "OrderedDict[str, dict | None]" = OrderedDict()
+_RASTER_CACHE_MAX = 48
 
 
 def _get_catalog():
@@ -61,13 +65,21 @@ def _month_items(bbox: list[float], year: int, month: int):
     return list(search.items())
 
 
+def _cache_put(key: str, value: dict | None) -> None:
+    _raster_cache[key] = value
+    _raster_cache.move_to_end(key)
+    while len(_raster_cache) > _RASTER_CACHE_MAX:
+        _raster_cache.popitem(last=False)
+
+
 def _load_tile(item) -> dict | None:
     if item.id in _raster_cache:
+        _raster_cache.move_to_end(item.id)
         return _raster_cache[item.id]
 
     asset = item.assets.get("Burn_Date")
     if asset is None:
-        _raster_cache[item.id] = None
+        _cache_put(item.id, None)
         return None
 
     with rasterio.Env(GDAL_DISABLE_READDIR_ON_OPEN="EMPTY_DIR"):
@@ -75,7 +87,7 @@ def _load_tile(item) -> dict | None:
             data = src.read(1)
             entry = {"data": data, "crs": src.crs, "transform": src.transform, "bounds": src.bounds}
 
-    _raster_cache[item.id] = entry
+    _cache_put(item.id, entry)
     return entry
 
 
@@ -112,7 +124,10 @@ def label_burned_batch(
 
     Returns a DataFrame (same row order/index) with columns:
         burned (bool), burn_day_of_year (float, NaN if none),
-        neighborhood_burned_pixels (int)
+        neighborhood_burned_pixels (int),
+        checked (bool): False when MCD64A1 had no granule for the hotspot's
+            month or the following one. Those rows have NO outcome, and must
+            not be treated as "not burned" (MCD64A1 publishes months late).
     """
     dates = pd.to_datetime(hotspots["acq_date"])
     year_months = sorted({(d.year, d.month) for d in dates})
@@ -122,6 +137,7 @@ def label_burned_batch(
             "burned": False,
             "burn_day_of_year": np.nan,
             "neighborhood_burned_pixels": 0,
+            "checked": False,
         },
         index=hotspots.index,
     )
@@ -143,8 +159,13 @@ def label_burned_batch(
         if subset.empty:
             continue
 
+        month_items = {ym: _month_items(bbox, *ym) for ym in months_to_check}
+        # Only an outcome if every month the burn window spans is published.
+        if all(month_items.values()):
+            result.loc[subset.index, "checked"] = True
+
         for check_year, check_month in months_to_check:
-            items = _month_items(bbox, check_year, check_month)
+            items = month_items[(check_year, check_month)]
             for item in items:
                 tile = _load_tile(item)
                 if tile is None:

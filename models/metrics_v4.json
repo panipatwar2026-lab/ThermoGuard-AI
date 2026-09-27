@@ -1,0 +1,309 @@
+{
+  "dataset_rows": 1740549,
+  "dataset_path": "output/data_viirs_2024_2025.csv",
+  "risk_model": {
+    "cv_fold_accuracies": [
+      0.8027089138490707,
+      0.8025336818821637,
+      0.8024331389503317,
+      0.8021774726379592,
+      0.8020275258611527
+    ],
+    "cv_mean_accuracy": 0.8023761466361357,
+    "cv_std_accuracy": 0.00024487029134799066,
+    "classification_report": {
+      "High": {
+        "precision": 0.5383810747289315,
+        "recall": 0.6220742480954521,
+        "f1-score": 0.5772096446344711,
+        "support": 264761.0
+      },
+      "Low": {
+        "precision": 0.8776593980658399,
+        "recall": 0.9082124738883915,
+        "f1-score": 0.8926745817173621,
+        "support": 1340400.0
+      },
+      "Medium": {
+        "precision": 0.3049529095190044,
+        "recall": 0.10714391231128313,
+        "f1-score": 0.158573646122565,
+        "support": 135388.0
+      },
+      "accuracy": 0.8023761468364292,
+      "macro avg": {
+        "precision": 0.5736644607712587,
+        "recall": 0.5458102114317089,
+        "f1-score": 0.5428192908247994,
+        "support": 1740549.0
+      },
+      "weighted avg": {
+        "precision": 0.7815028094053758,
+        "recall": 0.8023761468364292,
+        "f1-score": 0.7875863195223237,
+        "support": 1740549.0
+      }
+    },
+    "holdout_70_30": {
+      "train_size": 1218384,
+      "test_size": 522165,
+      "test_accuracy": 0.8020395851885899,
+      "classification_report": {
+        "High": {
+          "precision": 0.5341862779027513,
+          "recall": 0.6218587903510098,
+          "f1-score": 0.5746980662276313,
+          "support": 79428.0
+        },
+        "Low": {
+          "precision": 0.8780707810060784,
+          "recall": 0.9077961802447031,
+          "f1-score": 0.8926860939557598,
+          "support": 402120.0
+        },
+        "Medium": {
+          "precision": 0.3122136311569301,
+          "recall": 0.1073688357091858,
+          "f1-score": 0.15978748740496473,
+          "support": 40617.0
+        },
+        "accuracy": 0.8020395851885899,
+        "macro avg": {
+          "precision": 0.5748235633552533,
+          "recall": 0.5456746021016329,
+          "f1-score": 0.5423905491961186,
+          "support": 522165.0
+        },
+        "weighted avg": {
+          "precision": 0.7817459063631708,
+          "recall": 0.8020395851885899,
+          "f1-score": 0.7873069594510278,
+          "support": 522165.0
+        }
+      }
+    },
+    "time_holdout": {
+      "train_until": "2025-03-28 00:00:00",
+      "test_from": "2025-03-28 00:00:00",
+      "test_size": 348110,
+      "test_accuracy": 0.8093734739019276,
+      "classification_report": {
+        "High": {
+          "precision": 0.29555279368853343,
+          "recall": 0.3345873860647214,
+          "f1-score": 0.31386107365219634,
+          "support": 32694.0
+        },
+        "Low": {
+          "precision": 0.8847804999541207,
+          "recall": 0.9103872675467436,
+          "f1-score": 0.8974012527567129,
+          "support": 296565.0
+        },
+        "Medium": {
+          "precision": 0.13831932773109243,
+          "recall": 0.043658161370749564,
+          "f1-score": 0.06636829160114512,
+          "support": 18851.0
+        },
+        "accuracy": 0.8093734739019276,
+        "macro avg": {
+          "precision": 0.4395508737912488,
+          "recall": 0.4295442716607382,
+          "f1-score": 0.42587687267001817,
+          "support": 348110.0
+        },
+        "weighted avg": {
+          "precision": 0.7890183839958792,
+          "recall": 0.8093734739019276,
+          "f1-score": 0.7975935340287629,
+          "support": 348110.0
+        }
+      }
+    }
+  },
+  "fire_source_model": {
+    "cv_fold_accuracies": [
+      0.823544281979834,
+      0.82239234724656,
+      0.8237913303266209,
+      0.8233489414265606,
+      0.821518547351548
+    ],
+    "cv_mean_accuracy": 0.8229190896662246,
+    "cv_std_accuracy": 0.0008456261687510298,
+    "classification_report": {
+      "Agricultural Fire": {
+        "precision": 0.8016136059365458,
+        "recall": 0.780910682711325,
+        "f1-score": 0.7911267242759956,
+        "support": 581959.0
+      },
+      "Industrial/Urban Fire": {
+        "precision": 0.5356170857710923,
+        "recall": 0.6502967946181243,
+        "f1-score": 0.5874120874701745,
+        "support": 50540.0
+      },
+      "Offshore": {
+        "precision": 0.3466800804828974,
+        "recall": 0.20580506450071667,
+        "f1-score": 0.25828211662419426,
+        "support": 8372.0
+      },
+      "Other": {
+        "precision": 0.5219886693244794,
+        "recall": 0.7201777838325698,
+        "f1-score": 0.6052725737430408,
+        "support": 58723.0
+      },
+      "Unknown": {
+        "precision": 0.6101328390485017,
+        "recall": 0.6289808917197452,
+        "f1-score": 0.6194135173278972,
+        "support": 3140.0
+      },
+      "Wildfire": {
+        "precision": 0.8787771264465565,
+        "recall": 0.8662603643231211,
+        "f1-score": 0.8724738554226221,
+        "support": 1037815.0
+      },
+      "accuracy": 0.8229190904708802,
+      "macro avg": {
+        "precision": 0.6158015678350122,
+        "recall": 0.6420719302842671,
+        "f1-score": 0.622330145810654,
+        "support": 1740549.0
+      },
+      "weighted avg": {
+        "precision": 0.8279315244054531,
+        "recall": 0.8229190904708802,
+        "f1-score": 0.824572187379847,
+        "support": 1740549.0
+      }
+    },
+    "class_counts": {
+      "Wildfire": 1037815,
+      "Agricultural Fire": 581959,
+      "Other": 58723,
+      "Industrial/Urban Fire": 50540,
+      "Offshore": 8372,
+      "Unknown": 3140
+    },
+    "n_splits_used": 5,
+    "holdout_70_30": {
+      "train_size": 1218384,
+      "test_size": 522165,
+      "test_accuracy": 0.8236955751534477,
+      "classification_report": {
+        "Agricultural Fire": {
+          "precision": 0.8028284086968277,
+          "recall": 0.782333264600087,
+          "f1-score": 0.7924483419828904,
+          "support": 174588.0
+        },
+        "Industrial/Urban Fire": {
+          "precision": 0.5296875823191612,
+          "recall": 0.6631051312491756,
+          "f1-score": 0.5889347743314881,
+          "support": 15162.0
+        },
+        "Offshore": {
+          "precision": 0.3711952487008166,
+          "recall": 0.19912385503783353,
+          "f1-score": 0.2592016588906169,
+          "support": 2511.0
+        },
+        "Other": {
+          "precision": 0.5237107532129494,
+          "recall": 0.7309417040358744,
+          "f1-score": 0.6102120601824428,
+          "support": 17617.0
+        },
+        "Unknown": {
+          "precision": 0.6377118644067796,
+          "recall": 0.6390658174097664,
+          "f1-score": 0.6383881230116649,
+          "support": 942.0
+        },
+        "Wildfire": {
+          "precision": 0.8801727122485906,
+          "recall": 0.8655542886508536,
+          "f1-score": 0.8728022943423603,
+          "support": 311345.0
+        },
+        "accuracy": 0.8236955751534477,
+        "macro avg": {
+          "precision": 0.6242177615975208,
+          "recall": 0.6466873434972652,
+          "f1-score": 0.6269978754569107,
+          "support": 522165.0
+        },
+        "weighted avg": {
+          "precision": 0.8292239246614267,
+          "recall": 0.8236955751534477,
+          "f1-score": 0.8254600621491875,
+          "support": 522165.0
+        }
+      }
+    },
+    "time_holdout": {
+      "train_until": "2025-03-28 00:00:00",
+      "test_from": "2025-03-28 00:00:00",
+      "test_size": 348110,
+      "test_accuracy": 0.8210479446152078,
+      "classification_report": {
+        "Agricultural Fire": {
+          "precision": 0.8183514645508204,
+          "recall": 0.8242074927953891,
+          "f1-score": 0.8212690397580668,
+          "support": 143658.0
+        },
+        "Industrial/Urban Fire": {
+          "precision": 0.47061797042840897,
+          "recall": 0.5518672199170125,
+          "f1-score": 0.5080144601323239,
+          "support": 6748.0
+        },
+        "Offshore": {
+          "precision": 0.22934232715008432,
+          "recall": 0.09927007299270073,
+          "f1-score": 0.13856342333163527,
+          "support": 1370.0
+        },
+        "Other": {
+          "precision": 0.4635591037857327,
+          "recall": 0.6419400855920114,
+          "f1-score": 0.5383580080753702,
+          "support": 8412.0
+        },
+        "Unknown": {
+          "precision": 0.63125,
+          "recall": 0.4279661016949153,
+          "f1-score": 0.51010101010101,
+          "support": 472.0
+        },
+        "Wildfire": {
+          "precision": 0.8633498953260198,
+          "recall": 0.8426193651640438,
+          "f1-score": 0.8528586740244979,
+          "support": 187450.0
+        },
+        "accuracy": 0.8210479446152078,
+        "macro avg": {
+          "precision": 0.5794117935401777,
+          "recall": 0.5646450563593455,
+          "f1-score": 0.5615274359038173,
+          "support": 348110.0
+        },
+        "weighted avg": {
+          "precision": 0.8246962477578819,
+          "recall": 0.8210479446152078,
+          "f1-score": 0.8222618565025177,
+          "support": 348110.0
+        }
+      }
+    }
+  }
+}

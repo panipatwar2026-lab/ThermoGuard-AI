@@ -51,7 +51,9 @@ from xgboost import XGBClassifier
 RISK_FEATURE_COLUMNS = [
     "latitude", "longitude", "brightness", "scan", "track", "acq_time",
     "confidence", "version", "bright_t31", "daynight", "type",
-    "year", "month", "day", "day_of_year", "day_of_week", "week_of_year",
+    # `year` deliberately excluded: live inputs are always in a later year
+    # than any training row, and trees can't extrapolate it.
+    "month", "day", "day_of_year", "day_of_week", "week_of_year",
     "hour", "minute", "is_weekend", "season",
     "month_sin", "month_cos", "hour_sin", "hour_cos",
     "day_of_year_sin", "day_of_year_cos",
@@ -69,7 +71,7 @@ RISK_FEATURE_COLUMNS = [
 FIRE_SOURCE_FEATURE_COLUMNS = [
     "latitude", "longitude",
     "brightness", "scan", "track", "acq_time", "bright_t31",
-    "year", "month", "day", "day_of_year", "day_of_week", "week_of_year",
+    "month", "day", "day_of_year", "day_of_week", "week_of_year",
     "hour", "minute", "is_weekend",
     "month_sin", "month_cos", "hour_sin", "hour_cos",
     "day_of_year_sin", "day_of_year_cos",
@@ -107,6 +109,31 @@ def holdout_report(model_cls, X, y, label_encoder, test_size=0.3, **model_kwargs
         "test_size": len(X_test),
         "test_accuracy": float(accuracy_score(y_test, pred)),
         "classification_report": report,
+    }
+
+
+def time_holdout_report(model_cls, X, y, dates, label_encoder, test_frac=0.2, **model_kwargs):
+    """Train on the earliest dates, test on the most recent ones. Stricter
+    than a random split: neighbouring detections of one fire (same place,
+    same days) cannot sit on both sides, which inflates random-split
+    accuracy. This is the closest offline stand-in for serving live data."""
+    order = np.argsort(dates.to_numpy(), kind="stable")
+    cut = int(len(order) * (1 - test_frac))
+    train_idx, test_idx = order[:cut], order[cut:]
+
+    model = model_cls(**model_kwargs)
+    model.fit(X.iloc[train_idx], y[train_idx], sample_weight=softened_sample_weight(y[train_idx]))
+    pred = model.predict(X.iloc[test_idx])
+
+    return {
+        "train_until": str(dates.iloc[order[cut - 1]]),
+        "test_from": str(dates.iloc[order[cut]]),
+        "test_size": int(len(test_idx)),
+        "test_accuracy": float(accuracy_score(y[test_idx], pred)),
+        "classification_report": classification_report(
+            y[test_idx], pred, labels=np.arange(len(label_encoder.classes_)),
+            target_names=label_encoder.classes_, output_dict=True, zero_division=0,
+        ),
     }
 
 
@@ -155,7 +182,7 @@ def train_risk_model(df: pd.DataFrame, out_dir: Path) -> dict:
         X, y, label_encoder,
         n_estimators=300, max_depth=6, learning_rate=0.05,
         subsample=0.9, colsample_bytree=0.9,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
 
@@ -164,7 +191,16 @@ def train_risk_model(df: pd.DataFrame, out_dir: Path) -> dict:
         X, y, label_encoder,
         n_estimators=300, max_depth=6, learning_rate=0.05,
         subsample=0.9, colsample_bytree=0.9,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
+        eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
+    )
+
+    cv["time_holdout"] = time_holdout_report(
+        XGBClassifier,
+        X, y, pd.to_datetime(df["acq_date"]), label_encoder,
+        n_estimators=300, max_depth=6, learning_rate=0.05,
+        subsample=0.9, colsample_bytree=0.9,
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
 
@@ -173,7 +209,7 @@ def train_risk_model(df: pd.DataFrame, out_dir: Path) -> dict:
     final_model = XGBClassifier(
         n_estimators=300, max_depth=6, learning_rate=0.05,
         subsample=0.9, colsample_bytree=0.9,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
     final_model.fit(X, y, sample_weight=softened_sample_weight(y))
@@ -221,7 +257,7 @@ def train_fire_source_model(df: pd.DataFrame, out_dir: Path) -> dict | None:
         X, y, label_encoder,
         n_splits=n_splits,
         n_estimators=200, max_depth=5, learning_rate=0.05,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
     cv["class_counts"] = counts.to_dict()
@@ -231,13 +267,21 @@ def train_fire_source_model(df: pd.DataFrame, out_dir: Path) -> dict | None:
         XGBClassifier,
         X, y, label_encoder,
         n_estimators=200, max_depth=5, learning_rate=0.05,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
+        eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
+    )
+
+    cv["time_holdout"] = time_holdout_report(
+        XGBClassifier,
+        X, y, pd.to_datetime(subset["acq_date"]), label_encoder,
+        n_estimators=200, max_depth=5, learning_rate=0.05,
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
 
     final_model = XGBClassifier(
         n_estimators=200, max_depth=5, learning_rate=0.05,
-        objective="multi:softmax", num_class=len(label_encoder.classes_),
+        objective="multi:softprob", num_class=len(label_encoder.classes_),
         eval_metric="mlogloss", tree_method="hist", n_jobs=-1, random_state=42,
     )
     final_model.fit(X, y, sample_weight=softened_sample_weight(y))
@@ -267,6 +311,8 @@ def main():
     risk_cv = train_risk_model(df, out_dir)
     print(f"Risk model CV accuracy: {risk_cv['cv_mean_accuracy']:.4f} +/- {risk_cv['cv_std_accuracy']:.4f}")
     print(f"Risk model 70/30 holdout test accuracy: {risk_cv['holdout_70_30']['test_accuracy']:.4f}")
+    th = risk_cv["time_holdout"]
+    print(f"Risk model time holdout (test from {th['test_from']}): {th['test_accuracy']:.4f}, macro-F1 {th['classification_report']['macro avg']['f1-score']:.3f}")
 
     print("\nTraining fire-source model...")
     source_cv = train_fire_source_model(df, out_dir)
@@ -275,6 +321,8 @@ def main():
     elif source_cv:
         print(f"Fire-source model CV accuracy: {source_cv['cv_mean_accuracy']:.4f} +/- {source_cv['cv_std_accuracy']:.4f}")
         print(f"Fire-source model 70/30 holdout test accuracy: {source_cv['holdout_70_30']['test_accuracy']:.4f}")
+        th = source_cv["time_holdout"]
+        print(f"Fire-source model time holdout (test from {th['test_from']}): {th['test_accuracy']:.4f}, macro-F1 {th['classification_report']['macro avg']['f1-score']:.3f}")
 
     metrics = {
         "dataset_rows": len(df),

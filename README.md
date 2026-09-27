@@ -289,16 +289,21 @@ Model loading and inference: `backend/app/ml.py`. Model artifacts: `models/` (se
 
 | Model | Purpose | Input | Output | Artifact |
 |---|---|---|---|---|
-| Risk classifier | Predict wildfire risk level | Engineered hotspot features (lat/lon, brightness, FRP, scan/track, time-based cyclical features, etc. — see `ml.py: build_input_data`) | `Low` / `Medium` / `High` + class probabilities | `models/thermoguard_risk_v3.pkl` (+ `label_encoder_risk_v3.pkl`, `feature_columns_risk_v3.pkl`) |
-| Fire-source classifier | Predict likely fire source category | Same engineered feature set, reindexed to its own feature list | `Wildfire` / `Agricultural Fire` / `Industrial/Urban Fire` / `Offshore` / `Other` / `Unknown` + confidence | `models/thermoguard_fire_source_v3.pkl` (+ `fire_source_label_encoder_v3.pkl`, `fire_source_features_v3.pkl`) |
+| Risk classifier | Predict wildfire risk level | Engineered hotspot features (lat/lon, brightness, FRP, scan/track, time-based cyclical features, etc. — see `ml.py: build_input_data`) | `Low` / `Medium` / `High` + class probabilities | `models/thermoguard_risk_v4.pkl` (+ `label_encoder_risk_v4.pkl`, `feature_columns_risk_v4.pkl`) |
+| Fire-source classifier | Predict likely fire source category | Same engineered feature set, reindexed to its own feature list | `Wildfire` / `Agricultural Fire` / `Industrial/Urban Fire` / `Offshore` / `Other` / `Unknown` + confidence | `models/thermoguard_fire_source_v4.pkl` (+ `fire_source_label_encoder_v4.pkl`, `fire_source_features_v4.pkl`) |
 
 Both are **XGBoost** classifiers (per `models/README.md` and `/api/meta`'s reported `"model": "XGBoost"`).
 
-**Documented evaluation** (from `models/README.md` / `/api/meta`, not independently re-verified here — treat as the project's own reported figures):
-- Risk model: 86.68% 70/30 holdout test accuracy, 86.79% 5-fold CV mean. Per-class F1: Low 0.94, High 0.68, Medium 0.27 (weakest, genuinely ambiguous middle class).
-- Fire-source model: 82.17% 70/30 holdout test accuracy, 82.51% 5-fold CV mean. Per-class F1: Wildfire 0.86, Agricultural Fire 0.81, Industrial/Urban Fire 0.53, Other 0.59, Offshore 0.18, Unknown 0.64.
+**Evaluation (v4)**, headline numbers from a **time holdout**: trained on detections before 2025-03-28, tested on the 348,110 after. Detections of the same fire can't land on both sides, so this is stricter than a random split. Full report: `models/metrics_v4.json`.
 
-Trained on a 248,308-row pull (Jan 2025–Sep 2026, all India) via `data-pipeline/`, using sqrt-dampened class-balanced sample weights (`train.py`) so the minority classes stay learnable without collapsing majority-class accuracy. Full per-class reports live in `data-pipeline/output/models_2025_2026_softened/metrics.json` (this file is gitignored — generated locally by running the pipeline, not committed to the repo).
+| Model | Time-holdout accuracy | Macro-F1 | Per-class F1 |
+|---|---|---|---|
+| Risk | 80.94% (5-fold CV 80.24%) | 0.43 | Low 0.90, High 0.31, Medium 0.07 |
+| Fire source | 82.10% (5-fold CV 82.29%) | 0.56 | Wildfire 0.85, Agricultural 0.82, Other 0.54, Industrial/Urban 0.51, Unknown 0.51, Offshore 0.14 |
+
+Trained on **1,740,549 VIIRS S-NPP detections** (Jan 2024 to Jun 2025, all India) via `data-pipeline/`, matching the live feed (mostly VIIRS). Sqrt-dampened class-balanced sample weights (`train.py`) keep minority classes learnable.
+
+**Why v4 replaced v3.** v3 reported 86.7%, but it was trained on MODIS data, and every hotspot from Jul 2025 on was labelled "Low" only because MCD64A1 burned-area maps for those months aren't published yet. With `year` as a feature it learned "recent = Low" and answered Low at 100% confidence for every live input, in every season. v4 uses only months with a published burned-area outcome, drops `year`, and gives graded probabilities that respond to season. Its lower headline number is the honest one. High and Medium risk remain weak, so treat them as hints.
 
 **Additional rule-based (non-ML) logic in `ml.py`**:
 - `detect_fire()` — preliminary fire flag: `FRP ≥ 2.40 and brightness_difference ≥ 15`.
@@ -325,7 +330,8 @@ train.py — trains + evaluates the risk and fire-source XGBoost models
 Model artifacts (.pkl) → models/
 ```
 
-- **Risk label**: whether the hotspot corresponds to an actual MODIS-mapped burn within 30 days (real outcome), not an arbitrary FRP threshold.
+- **Risk label**: whether the hotspot corresponds to an actual MODIS-mapped burn within 30 days (real outcome), not an arbitrary FRP threshold. Hotspots from months MCD64A1 hasn't published yet are dropped, not labelled Low.
+- **Sensor**: `build_dataset.py --source VIIRS_SNPP_SP` (default) or `MODIS_SP`.
 - **Fire-source label**: real ESA WorldCover land-cover class at the hotspot's location.
 - **Geographic scope**: India (`INDIA_BBOX`).
 - Known limitations of this pipeline (burn-size proxy, offshore land-cover gaps, FRP kept only as a reference column) are documented in `data-pipeline/README.md`.
@@ -579,7 +585,8 @@ Verified behavior from the current code:
 - "Fire detected" is a preliminary rule-based threshold check, not a dedicated trained binary classifier.
 - Geographic scope is India. The boundary filter keeps land plus ~5 km, so far-offshore Indian platforms (e.g. Bombay High) are excluded.
 - Automated checks are limited to `python -m backend.test_api` (request validation and feature smoke checks).
-- The models were trained on MODIS (`MODIS_SP`) archive hotspots, while most live rows are VIIRS. Dashboard prefill maps VIIRS `bright_ti4`/`bright_ti5` onto the model's `brightness`/`bright_t31` inputs, but these bands differ from MODIS, so predictions on live VIIRS hotspots are outside the training distribution until the models are retrained on VIIRS data.
+- The v4 models are trained on VIIRS S-NPP; live MODIS rows (a small share) are scored through the same inputs and are slightly outside the training distribution.
+- The risk model is weak on High (F1 0.31) and Medium (F1 0.07); most hotspots are Low, and the label is a proxy (a mapped burn nearby within 30 days), not fire severity.
 - Evaluation uses a random stratified split; spatially and temporally adjacent hotspots from the same fire can land in both train and test sets, so reported accuracy is likely optimistic.
 - The dashboard's per-hotspot score is a client-side heuristic (`lib/aiRisk.ts`), not the trained model.
 - Free-tier hosting (Render) may introduce startup latency after idle periods.

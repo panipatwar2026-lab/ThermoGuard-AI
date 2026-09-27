@@ -13,31 +13,25 @@ import pandas as pd
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODELS_DIR = os.path.join(ROOT_DIR, "models")
 
-# v3: retrained on a 248,308-row pull (Jan 2025-Sep 2026, all India) via
-# data-pipeline/, replacing v2's small 1,472-row/10-day/1-region first pass.
-# Fit with sqrt-dampened class-balanced sample weights (see train.py's
-# softened_sample_weight) — plain fitting on this label distribution
-# (Low 84% of rows) let the model nearly ignore Medium risk entirely;
-# full inverse-frequency balancing overcorrected the other way (minority
-# recall up, precision collapsed, macro-F1 down). Sqrt damping was the
-# best of the three on held-out data. See data-pipeline/output/
-# models_2025_2026_softened/metrics.json for the full evaluation
-# (86.8% CV accuracy; Low F1 0.94, High F1 0.68, Medium F1 0.27).
-MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_risk_v3.pkl")
-ENCODER_FILE = os.path.join(MODELS_DIR, "label_encoder_risk_v3.pkl")
-FEATURE_FILE = os.path.join(MODELS_DIR, "feature_columns_risk_v3.pkl")
+# v4: trained on 1,740,549 VIIRS S-NPP detections (Jan 2024-Jun 2025, all
+# India), matching the live feed, which is mostly VIIRS. Replaces v3, which
+# was trained on MODIS and, worse, labelled every hotspot from Jul 2025 on
+# as "Low" because MCD64A1 burned-area data for those months isn't
+# published yet; with `year` as a feature it learned "recent = Low" and
+# answered Low at 100% for every live input. v4 only uses months that have
+# a burned-area outcome and drops `year`. VIIRS bright_ti4/bright_ti5 are
+# served through the brightness/bright_t31 inputs.
+# Time holdout (train < 2025-03-28, test after): 80.9% accuracy, macro-F1
+# 0.43 (Low 0.90, High 0.31, Medium 0.07). See models/metrics_v4.json.
+MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_risk_v4.pkl")
+ENCODER_FILE = os.path.join(MODELS_DIR, "label_encoder_risk_v4.pkl")
+FEATURE_FILE = os.path.join(MODELS_DIR, "feature_columns_risk_v4.pkl")
 
-# v3: same 248,308-row pull, same sqrt-dampened class weighting, ESA
-# WorldCover land-cover classes (Wildfire, Agricultural Fire,
-# Industrial/Urban Fire, Offshore, Other, Unknown). Every minority class
-# improved over v2 (Offshore F1 0.07-0.24 -> 0.20, Industrial/Urban ->
-# 0.55) except Unknown and Agricultural Fire, which regressed slightly
-# (see data-pipeline/output/models_2025_2026_softened/metrics.json) —
-# an accepted tradeoff for a model trained on far more representative
-# data instead of a 30,196-row single-season pull.
-FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_v3.pkl")
-FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder_v3.pkl")
-FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features_v3.pkl")
+# v4 fire source: same VIIRS pull, ESA WorldCover land-cover classes.
+# Time holdout: 82.1% accuracy, macro-F1 0.56.
+FIRE_SOURCE_MODEL_FILE = os.path.join(MODELS_DIR, "thermoguard_fire_source_v4.pkl")
+FIRE_SOURCE_ENCODER_FILE = os.path.join(MODELS_DIR, "fire_source_label_encoder_v4.pkl")
+FIRE_SOURCE_FEATURE_FILE = os.path.join(MODELS_DIR, "fire_source_features_v4.pkl")
 
 
 class ModelLoadError(Exception):

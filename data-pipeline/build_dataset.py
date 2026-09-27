@@ -66,8 +66,11 @@ def engineer_features(row: pd.Series) -> dict:
     day_of_year_sin = np.sin(2 * np.pi * day_of_year / 365)
     day_of_year_cos = np.cos(2 * np.pi * day_of_year / 365)
 
-    brightness = float(row["brightness"])
-    bright_t31 = float(row["bright_t31"])
+    # MODIS rows: brightness / bright_t31. VIIRS rows: bright_ti4 / bright_ti5
+    # (the I4 ~3.7um and I5 ~11um bands, the VIIRS counterparts). The backend
+    # serves both through the same two inputs.
+    brightness = float(row["brightness"] if "brightness" in row else row["bright_ti4"])
+    bright_t31 = float(row["bright_t31"] if "bright_t31" in row else row["bright_ti5"])
     scan = float(row["scan"])
     track = float(row["track"])
 
@@ -137,6 +140,14 @@ def build(hotspots: pd.DataFrame, bbox: list, window_days: int = 30) -> pd.DataF
     burn_result = label_burned_batch(hotspots, bbox, window_days=window_days)
     dataset["risk_level"] = burn_result["neighborhood_burned_pixels"].apply(label_risk).values
 
+    # Months MCD64A1 hasn't published yet have no outcome at all. Labelling
+    # them "Low" (the old behaviour) taught v3 that recent == Low.
+    checked = burn_result["checked"].to_numpy()
+    if (~checked).any():
+        print(f"Dropping {(~checked).sum()} rows with no published burned-area data for their month")
+    dataset = dataset[checked].reset_index(drop=True)
+    hotspots = hotspots[checked].reset_index(drop=True)
+
     print("Labeling fire source against real land-cover data (batched by tile)...")
     dataset["fire_source"] = label_landcover_batch(dataset).values
 
@@ -151,6 +162,7 @@ def main():
     parser.add_argument("--end", type=str, required=True, help="YYYY-MM-DD")
     parser.add_argument("--out", type=str, default="output/data_cleaned.csv")
     parser.add_argument("--window-days", type=int, default=30)
+    parser.add_argument("--source", default="VIIRS_SNPP_SP", help="FIRMS archive source, e.g. VIIRS_SNPP_SP or MODIS_SP")
     args = parser.parse_args()
 
     start = date.fromisoformat(args.start)
@@ -158,7 +170,7 @@ def main():
 
     print(f"Fetching FIRMS hotspots {start} .. {end} ...")
     try:
-        hotspots = fetch_hotspots(start, end)
+        hotspots = fetch_hotspots(start, end, source=args.source)
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
